@@ -39,6 +39,10 @@ describe("Routines Module Tests", async () => {
   });
 
   it("Routine count has to be higher than zero", async () => {
+    await delay(500);
+    let btnClick = await page.$("#showsyscheckbox");
+    await btnClick.click();
+    await delay(500);
     expect(
       await page.$eval("#routine_count_section", node => node.innerText)
     ).to.not.equal("0 Routines");
@@ -212,6 +216,32 @@ describe("Routines Module Tests", async () => {
         0
       );
   });
+
+  it("Testing [Show System generated routines button]]", async () => {
+    let routinesCount = await page.$$eval("#routines_column", nodes => Number(nodes.length))
+    await delay(500);
+    let btnClick = await page.$("#showsyscheckbox");
+    await btnClick.click();
+    await delay(500);
+    btnClick = await page.$("#showsyscheckbox");
+    await btnClick.click();
+    await delay(500);
+    searchInput = await page.$(".routine_search_input");
+    await searchInput.focus();
+    for (let i=0; i<25; i++){
+      await page.keyboard.press("Backspace");
+    }
+    await searchInput.type('*')
+    await page.keyboard.press("Enter");
+    await delay(500);
+    let generatedCount = await page.$$eval("#routines_column", nodes => Number(nodes.length))
+    await delay(500);
+    expect(
+      generatedCount
+    ).to.be.above(
+      routinesCount
+    );
+});
 
   function delay(time) {
     return new Promise(function(resolve) {
