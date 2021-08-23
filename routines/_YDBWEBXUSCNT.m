@@ -10,98 +10,97 @@
 	;#   the license, please stop and do not read further.           #
 	;#                                                               #
 	;#################################################################		
-COUNT(INC,JOB) ;Keep count of jobs
-	; DECOMMISION *10002*
-	I $T(^%PEEKBYNAME)]"" QUIT
-	N XUCNT,X
-	S JOB=$G(JOB,$J)
-	;Return Current Count
-	I INC=0 D TOUCH Q +$G(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))
-	;Increment Count
-	I INC>0 D  Q
-	. S X=$G(^YDBWEB("YDBWEBZSY","XUSYS",JOB,"NM")) K ^YDBWEB("YDBWEBZSY","XUSYS",JOB) S ^YDBWEB("YDBWEBZSY","XUSYS",JOB,"NM")=X
-	. D TOUCH
-	. L +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):5
-	. S XUCNT=$G(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))+1,^YDBWEB("YDBWEBZSY","XUSYS","CNT")=XUCNT
-	. L -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
-	. Q
-	;Decrement Count
-	I INC<0 D  Q
-	. L +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):5
-	. S XUCNT=$G(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))-1,^YDBWEB("YDBWEBZSY","XUSYS","CNT")=$S(XUCNT>0:XUCNT,1:0)
-	. L -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
-	. K ^YDBWEB("YDBWEBZSY","XUSYS",JOB)
-	Q
+count(inc,job) ;keep count of jobs
+	; decommision *10002*
+	new xucnt,x
+	set job=$get(job,$job)
+	;return current count
+	if inc=0 do touch quit +$get(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))
+	;increment count
+	if inc>0 do  quit
+	. set x=$get(^YDBWEB("YDBWEBZSY","XUSYS",job,"NM")) kill ^YDBWEB("ydbwebzsy","xusys",job) set ^YDBWEB("YDBWEBZSY","XUSYS",job,"NM")=x
+	. do touch
+	. lock +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):5
+	. set xucnt=$get(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))+1,^YDBWEB("YDBWEBZSY","XUSYS","CNT")=xucnt
+	. lock -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
+	. quit
+	;decrement count
+	if inc<0 do  quit
+	. lock +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):5
+	. set xucnt=$get(^YDBWEB("YDBWEBZSY","XUSYS","CNT"))-1,^YDBWEB("YDBWEBZSY","XUSYS","CNT")=$select(xucnt>0:xucnt,1:0)
+	. lock -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
+	. kill ^YDBWEB("YDBWEBZSY","XUSYS",job)
+	quit
 	;
-CHECK(JOB) ;Check if job number active
-	; 0 = Job doesn't seem to be running
-	; 1 = Job maybe running
-	; 2 = Job still has Lock out. ;
-	Q:$G(JOB)'>0 0
-	I '$D(^YDBWEB("YDBWEBZSY","XUSYS",JOB)) Q 0
-	N LK,%T
-	S %T=0,LK=$$GETLOCK()
-	I $L(LK) L +@LK:0 S %T=$T L:%T -@LK
-	Q $S(%T:2,1:1)
+check(job) ;check if job number active
+	; 0 = job doesn't seem to be running
+	; 1 = job maybe running
+	; 2 = job still has lock out. ;
+	quit:$get(job)'>0 0
+	if '$data(^YDBWEB("YDBWEBZSY","XUSYS",job)) quit 0
+	new lk,%t
+	set %t=0,lk=$$getlock()
+	if $length(lk) lock +@lk:0 set %t=$test lock:%t -@lk
+	quit $select(%t:2,1:1)
 	;
-SETLOCK(NLK) ;Set the Lock we will keep
-	I $L($G(NLK)) S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"LOCK")=NLK
-	E  K ^YDBWEB("YDBWEBZSY","XUSYS",$J,"LOCK")
-	D TOUCH ;Update the time
-	Q
+setlock(nlk) ;set the lock we will keep
+	if $length($get(nlk)) set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"LOCK")=nlk
+	else  kill ^YDBWEB("YDBWEBZSY","XUSYS",$job,"LOCK")
+	do touch ;update the time
+	quit
 	;
-TOUCH ;Update the time
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,0)=$H
-	Q
+touch ;update the time
+	set ^ydbweb("ydbwebzsy","xusys",$job,0)=$horolog
+	quit
 	;
-GETLOCK() ;Get the node to Lock
-	Q $G(^YDBWEB("YDBWEBZSY","XUSYS",$J,"LOCK"))
+getlock() ;get the node to lock
+	quit $get(^YDBWEB("YDBWEBZSY","XUSYS",$JOB,"LOCK"))
 	;
-CLEAR(DB) ;Check for locks and time clear old ones. ;
-	N %J,%T,CNT,CT,LK,IM,IMAGE,H K ^TMP($J)
-	D TOUCH ;See that we are current
-	;S %J=0 F  S %J=$ZPID(%J) Q:%J'>0  S ^TMP($J,%J)="",^TMP($J,%J,1)=$ZGETJPI(%J,"IMAGNAME")
-	S DB=+$G(DB),IMAGE="mumps" ;$ZGETJPI($J,"IMAGNAME") ; ours
-	S %J=0,CNT=0,H=$H,CT=$$H3($H)
-	I DB W !,"Current Job Count: ",$$COUNT(0)
-	F  S %J=$O(^YDBWEB("YDBWEBZSY","XUSYS",%J)) Q:%J'>0  D
-	. S CNT=CNT+1
-	. I DB W !,CNT," Job: ",%J
-	. S LK=$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"LOCK")) ;Get lock name
-	. I '$L(LK) W:DB " No Lock node"
-	. I $L(LK) L +@LK:0 S %T=$T D  Q:'%T  L -@LK ;Quit if lock still held
-	. . I '%T,DB W " Lock Held"
-	. . I %T,DB W " Lock Fail"
-	. S IM=$G(^TMP($J,%J,1))
-	. I IM=IMAGE W:DB " Image Match: ",IM  Q
-	. I IM["ZFOO.EXE" W:DB " ZFOO Image" Q  ;Quit if in same image
-	. S H=$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,0)) I H>0 S H=$$H3(H)
-	. I H+60>CT D  Q  ;Updated in last 30 seconds. ;
-	. .  I DB W " Current TimeStamp"
-	. S NM=$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"NM"))
-	. I NM["Task " S TM=+$P(NM,"Task ",2) I TM>0 D  Q:%
-	. . S TM(1)=$G(^%ZTSK(TM,.1)),%=(TM(1)=5)
-	. . I DB,% W " Running Task"
-	. . Q
-	. ;More checks
-	. D COUNT(-1,%J) I DB W " Not Active: Removed" ;Not Active
-	. Q
-	L +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):3
-	S CNT=0,%J=0 F  S %J=$O(^YDBWEB("YDBWEBZSY","XUSYS",%J)) Q:%J'>0  S CNT=CNT+1
-	S ^YDBWEB("YDBWEBZSY","XUSYS","CNT")=CNT
-	L -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
-	I DB W !,"New JOB count: ",CNT
-	Q
+clear(db) ;check for locks and time clear old ones. ;
+	new %j,%t,cnt,ct,lk,im,image,h kill ^tmp($job)
+	do touch ;see that we are current
+	;s %j=0 f  s %j=$zpid(%j) q:%j'>0  s ^tmp($j,%j)="",^tmp($j,%j,1)=$zgetjpi(%j,"imagname")
+	set db=+$get(db),image="mumps" ;$zgetjpi($j,"imagname") ; ours
+	set %j=0,cnt=0,h=$horolog,ct=$$h3($horolog)
+	if db write !,"current job count: ",$$count(0)
+	for  set %j=$order(^YDBWEB("YDBWEBZSY","XUSYS",%j)) quit:%j'>0  do
+	. set cnt=cnt+1
+	. if db write !,cnt," job: ",%j
+	. set lk=$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"LOCK")) ;get lock name
+	. if '$length(lk) write:db " no lock node"
+	. if $length(lk) lock +@lk:0 set %t=$test do  quit:'%t  lock -@lk ;quit if lock still held
+	. . if '%t,db write " lock held"
+	. . if %t,db write " lock fail"
+	. set im=$get(^tmp($job,%j,1))
+	. if im=image write:db " image match: ",im  quit
+	. if im["zfoo.exe" write:db " zfoo image" quit  ;quit if in same image
+	. set h=$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,0)) if h>0 set h=$$h3(h)
+	. if h+60>ct do  quit  ;updated in last 30 seconds. ;
+	. . if db write " current timestamp"
+	. set nm=$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"NM"))
+	. if nm["task " set tm=+$piece(nm,"task ",2) if tm>0 do  quit:%
+	. . set tm(1)=$get(^%ztsk(tm,.1)),%=(tm(1)=5)
+	. . if db,% write " running task"
+	. . quit
+	. ;more checks
+	. do count(-1,%j) if db write " not active: removed" ;not active
+	. quit
+	lock +^YDBWEB("YDBWEBZSY","XUSYS","CNT"):3
+	set cnt=0,%j=0 for  set %j=$order(^YDBWEB("YDBWEBZSY","XUSYS",%j)) quit:%j'>0  set cnt=cnt+1
+	set ^YDBWEB("YDBWEBZSY","XUSYS","CNT")=cnt
+	lock -^YDBWEB("YDBWEBZSY","XUSYS","CNT")
+	if db write !,"new job count: ",cnt
+	quit
 	;
-H3(%H) ;Just seconds
-	Q %H*86400+$P(%H,",",2)
+h3(%h) ;just seconds
+	quit %h*86400+$piece(%h,",",2)
 	;
-	;Called from the X-REF both the volume and Max signon from file 8989.3
-XREF(X1,V) ;V="S" or "K"
-	N %,N
-	S %=$G(^XTV(8989.3,1,4,X1,0)),N=$P(%,"^") Q:%=""
-	I V="K" K ^XTV(8989.3,"AMAX",N) Q
-	S ^XTV(8989.3,"AMAX",N)=$P(%,"^",3)
-	Q
+	;called from the x-ref both the volume and max signon from file 8989.3
+xref(x1,v) ;v="s" or "k"
+	new %,n
+	set %=$get(^xtv(8989.3,1,4,x1,0)),n=$piece(%,"^") quit:%=""
+	if v="k" kill ^xtv(8989.3,"amax",n) quit
+	set ^xtv(8989.3,"amax",n)=$piece(%,"^",3)
+	quit
 	;
 	;

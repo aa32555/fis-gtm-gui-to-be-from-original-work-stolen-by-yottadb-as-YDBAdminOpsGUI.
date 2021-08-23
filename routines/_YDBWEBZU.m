@@ -11,51 +11,52 @@
 	;#                                                               #
 	;#################################################################
 	;	
-EN ;See that escape processing is off, Conflict with Screenman
-	U $P:(NOCENABLE:NOESCAPE)
-	N $ESTACK,$ETRAP S $ETRAP="D ERR^%YDBWEBZU Q:$QUIT -9 Q"
-	S $ZINTERRUPT="I $$JOBEXAM^%YDBWEBZU($ZPOSITION)"
-	D COUNT^%YDBWEBXUSCNT(1)
+en ;see that escape processing is off, conflict with screenman
+	use $principal:(nocenable:noescape)
+	new $estack,$etrap set $etrap="d err^%YDBWEBZU q:$quit -9 q"
+	set $zinterrupt="i $$jobexam^%YDBWEBZU($zposition)"
+	do count^%YDBWEBXUSCNT(1)
 	;
 	;
-ERR ;Come here on error
+err ;come here on error
 	; handle stack overflow errors specifically
-	I $P($ZS,",",3)["STACKCRIT"!("STACKOFLOW"[$P($ZS,",",3)) S $ET="Q:$ST>"_($ST-8)_"  G ERR2^%YDBWEBZU" Q
+	if $piece($zs,",",3)["stackcrit"!("stackoflow"[$piece($zs,",",3)) set $etrap="q:$st>"_($stack-8)_"  g err2^%YDBWEBZU" quit
 	;
-ERR2 ;
-	S $ETRAP="D UNWIND^%YDBWEBZU" L  ;Backup Trap
-	U $P:NOCENABLE
-	Q:$ECODE["<PROG>"
+err2 ;
+	set $etrap="d unwind^%YDBWEBZU" lock  ;backup trap
+	use $principal:nocenable
+	quit:$ecode["<prog>"
 	;
-	S $ET="D HALT^%YDBWEBZU"
+	set $etrap="d halt^%YDBWEBZU"
 	;
-	I $P($ZS,",",3)'["-CTRLC" S XUERF="" G ^%YDBWEBXUSCLEAN ;419
-CTRLC U $P
-	W !,"--Interrupt Acknowledged",!
-	D KILL1^%YDBWEBXUSCLEAN ;Clean up symbol table
-	S $ECODE=",<<POP>>,"
-	Q
+	if $zconvert($piece($zs,",",3),"l")'["-ctrlc" set xuerf="" goto ^%YDBWEBXUSCLEAN ;419
+ctrlc use $principal
+	write !,"--interrupt acknowledged",!
+	do kill1^%YDBWEBXUSCLEAN ;clean up symbol table
+	set $ecode=",<<pop>>,"
+	quit
 	;
-UNWIND ;Unwind the stack
-	Q:$ESTACK>1  G CTRLC2:$ECODE["<<POP>>"
-	S $ECODE=""
-	Q
+unwind ;unwind the stack
+	quit:$estack>1  goto ctrlc2:$ecode["<<pop>>"
+	set $ecode=""
+	quit
 	;
-CTRLC2 S $ECODE="" G:$G(^YDBWEB("YDBWEBZSY","XQ",$J,"T"))<2 ^%YDBWEBXUSCLEAN
-	S ^YDBWEB("YDBWEBZSY","XQ",$J,"T")=1,XQY=$G(^(1)),XQY0=$P(XQY,"^",2,99)
-	G:$P(XQY0,"^",4)'="M" HALT
-	S XQPSM=$P(XQY,"^",1),XQY=+XQPSM,XQPSM=$P(XQPSM,XQY,2,3)
-	G:'XQY ^%YDBWEBXUSCLEAN
-	S $ECODE="",$ETRAP="D ERR^%YDBWEBZU Q:$QUIT 0 Q"
-	U $P:NOESCAPE
-	G M1^XQ
+ctrlc2 set $ecode="" goto:$get(^YDBWEB("YDBWEBZSY","XQ",$job,"T"))<2 ^%YDBWEBXUSCLEAN
+	set ^YDBWEB("YDBWEBZSY","XQ",$job,"T")=1,xqy=$get(^(1)),xqy0=$piece(xqy,"^",2,99)
+	goto:$piece(xqy0,"^",4)'="m" halt
+	set xqpsm=$piece(xqy,"^",1),xqy=+xqpsm,xqpsm=$piece(xqpsm,xqy,2,3)
+	goto:'xqy ^%YDBWEBXUSCLEAN
+	set $ecode="",$etrap="d err^%YDBWEBZU q:$quit 0 q"
+	use $principal:noescape
+	goto m1^xq
 	;
-HALT I $D(^YDBWEB("YDBWEBZSY","XQ",$J)) D:$G(DUZ)>0 BYE^%YDBWEBXUSCLEAN
-	D COUNT^%YDBWEBXUSCNT(-1)
-	HALT
+halt if $data(^YDBWEB("YDBWEBZSY","XQ",$job)) do:$get(duz)>0 bye^%YDBWEBXUSCLEAN
+	do count^%YDBWEBXUSCNT(-1)
+	halt
 	;
-JOBEXAM(%ZPOS) ;
-	Q $$JOBEXAM^%YDBWEBZSY(%ZPOS)  ; FOIA improved by Sam
+jobexam(%zpos) ;
+	quit $$jobexam^%YDBWEBZSY(%zpos)  ; foia improved by sam
 	;
-	;
+JOBEXAM(%zpos) ;
+	quit $$jobexam^%YDBWEBZSY(%zpos)  ; foia improved by sam
 	;

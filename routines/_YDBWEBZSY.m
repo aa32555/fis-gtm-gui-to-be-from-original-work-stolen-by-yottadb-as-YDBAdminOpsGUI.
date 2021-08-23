@@ -11,637 +11,625 @@ YDBWEBZSY ; YottaDB system status display; 05-07-2021
 	;#                                                               #
 	;#################################################################
 	;
-EN ; [Public] Main Entry Point
-	;From the top just show by PID
-	n done,args,i,currentjob
-	s done=0
-	f i=1:1:$l($zcmdline," ") d
-	. s args(i)=$p($zcmdline," ",i)
-	i $l($g(args(1)))&($g(args(1))=+$g(args(1))) s currentjob=args(1)
-	N MODE
-	L +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 I '$T G LW
-	S MODE=0 D WORK(MODE)
-	Q
+en ; [public] main entry point
+	;from the top just show by pid
+	new done,args,i,currentjob
+	set done=0
+	for i=1:1:$length($zcmdline," ") do
+	. set args(i)=$piece($zcmdline," ",i)
+	if $length($get(args(1)))&($get(args(1))=+$get(args(1))) set currentjob=args(1)
+	new mode
+	lock +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 if '$test goto lw
+	set mode=0 do work(mode)
+	quit
 	;
-QUERY ; [Public] Alternate Entry Point
-	N MODE,X
-	L +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 I '$T G LW
-	S X=$$ASK W ! I X=-1 L -^YDBWEB("YDBWEBZSY","XUSYS","COMMAND") Q
-	S MODE=+X D WORK(MODE)
-	Q
+query ; [public] alternate entry point
+	new mode,x
+	lock +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 if '$test goto lw
+	set x=$$ask write ! if x=-1 lock -^YDBWEB("YDBWEBZSY","XUSYS","COMMAND") quit
+	set mode=+x do work(mode)
+	quit
 	;
-TMMGR ; [Public] Show only taskman manager tasks
-	N MODE
-	L +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 I '$T G LW
-	N FILTER S FILTER("%ZTM")="",FILTER("%ZTM0")=""
-	S MODE=0 D WORK(MODE,.FILTER)
-	QUIT
+tmmgr ; [public] show only taskman manager tasks
+	new mode
+	lock +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 if '$test goto lw
+	new filter set filter("%ZTM")="",filter("%ZTM0")=""
+	set mode=0 do work(mode,.filter)
+	quit
 	;
-TMSUB ; [Public] Show only taskman submanager tasks
-	N MODE
-	L +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 I '$T G LW
-	N FILTER S FILTER("%ZTMS1")=""
-	S MODE=0 D WORK(MODE,.FILTER)
-	QUIT
+tmsub ; [public] show only taskman submanager tasks
+	new mode
+	lock +^YDBWEB("YDBWEBZSY","XUSYS","COMMAND"):1 if '$test goto lw
+	new filter set filter("%ZTMS1")=""
+	set mode=0 do work(mode,.filter)
+	quit
 	;
-ASK() ;Ask sort item
-	; ZEXCEPT: %utAnswer
-	I $D(%utAnswer) Q %utAnswer
-	N RES,X,GROUP
-	S RES=0,GROUP=2
-	W !,"1 pid",!,"2 cpu time"
-	F  R !,"1// ",X:600 S:X="" X=1 Q:X["^"  Q:(X>0)&(X<3)  W " not valid"
-	Q:X["^" -1
-	S X=X-1,RES=(X#GROUP)_"~"_(X\GROUP)
-	Q RES
-	;
-	;
-JOBEXAM(%ZPOS) ; [Public; Called by ^%YDBWEBZU]
-	; Preserve old state for process
-	N OLDIO S OLDIO=$IO S U=""
-	N %reference S %reference=$REFERENCE
-	K ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE")
-	;
-	; Halt the Job if requested - no need to do other work
-	I $G(^YDBWEB("YDBWEBZSY","XUSYS",$J,"CMD"))="HALT" D H2^XUSCLEAN G HALT^%YDBWEBZU
+ask() ;ask sort item
+	; zexcept: %utanswer
+	if $data(%utanswer) quit %utanswer
+	new res,x,group
+	set res=0,group=2
+	write !,"1 pid",!,"2 cpu time"
+	for  read !,"1// ",x:600 set:x="" x=1 quit:x["^"  quit:(x>0)&(x<3)  write " not valid"
+	quit:x["^" -1
+	set x=x-1,res=(x#group)_"~"_(x\group)
+	quit res
 	;
 	;
-	; Save these
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,0)=$H
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","INTERRUPT")=$G(%ZPOS)
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","ZMODE")=$ZMODE ; SMH - INTERACTIVE or OTHER
-	I %ZPOS'["GTM$DMOD" S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","codeline")=$T(@%ZPOS)
-	I $G(DUZ) S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","UNAME")=$P($G(^VA(200,DUZ,0)),"^")
-	E           S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","UNAME")=$G(^YDBWEB("YDBWEBZSY","XUSYS",$J,"NM"))
+jobexam(%zpos) ; [public; called by ^%YDBWEBZU]
+	; preserve old state for process
+	new oldio set oldio=$io set u=""
+	new %reference set %reference=$reference
+	kill ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE")
+	;
+	; halt the job if requested - no need to do other work
+	if $get(^YDBWEB("YDBWEBZSY","XUSYS",$job,"CMD"))="HALT" goto halt^%YDBWEBZU
 	;
 	;
-	; Default System Status. ;
-	; S -> Stack
-	; D -> Devices
-	; G -> Global Stats
-	; L -> Locks
-	I '$D(^YDBWEB("YDBWEBZSY","XUSYS",$J,"CMD")) ZSHOW "SGDL":^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE") ; Default case -- most of the time this is what happens. ;
+	; save these
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,0)=$horolog
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","INTERRUPT")=$get(%zpos)
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","ZMODE")=$zmode ; smh - interactive or other
+	if %zpos'["GTM$DMOD" set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","CODELINE")=$text(@%zpos)
+	if $get(duz) set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","UNAME")=$piece($get(^va(200,duz,0)),"^")
+	else           set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","UNAME")=$get(^YDBWEB("YDBWEBZSY","XUSYS",$job,"NM"))
 	;
-	; Examine the Job
-	; ZSHOW "*" is "BDGILRV"
-	; B is break points
-	; D is Devices
-	; G are global stats
-	; I is ISVs
-	; L is Locks
-	; R is Routines with Hash (similar to S)
-	; V is Variables
-	; ZSHOW "*" does not include:
-	; A -> Autorelink information
-	; C -> External programs that are loaded (presumable with D &)
-	; S -> Stack (use R instead)
-	I $G(^YDBWEB("YDBWEBZSY","XUSYS",$J,"CMD"))="EXAM" ZSHOW "*":^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE")
 	;
-	; ^YDBWEB("YDBWEBZSY","XUSYS",8563,"JE","G",0)="GLD:*,REG:*,SET:25610,KIL:593,GET:12284,... ;
-	; Just grab the default region only. Decreases the stats as a side effect from this utility
-	N GLOSTAT
-	N I F I=0:0 S I=$O(^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","G",I)) Q:'I  I ^(I)[$ZGLD,^(I)["DEFAULT" S GLOSTAT=^(I)
-	I GLOSTAT]"" N I F I=1:1:$L(GLOSTAT,",") D
-	. N EACHSTAT S EACHSTAT=$P(GLOSTAT,",",I)
-	. N SUB,OBJ S SUB=$P(EACHSTAT,":"),OBJ=$P(EACHSTAT,":",2)
-	. S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","GSTAT",SUB)=OBJ
+	; default system status. ;
+	; s -> stack
+	; d -> devices
+	; g -> global stats
+	; l -> locks
+	if '$data(^YDBWEB("YDBWEBZSY","XUSYS",$job,"CMD")) zshow "SGDL":^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE") ; default case -- most of the time this is what happens. ;
 	;
-	; Capture IO statistics for this process
-	; ZEXCEPT: READONLY,REWIND
-	I $ZV["Linux" D
-	. N F S F="/proc/"_$J_"/io"
-	. O F:(READONLY:REWIND):0 E  Q
-	. U F
-	. N DONE S DONE=0 ; $ZEOF doesn't seem to work (https://github.com/YottaDB/YottaDB/issues/120)
-	. N X F  R X:0 U F D  Q:DONE
-	.. I X["read_bytes"  S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","RBYTE")=$P(X,": ",2)
-	.. I X["write_bytes" S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","WBYTE")=$P(X,": ",2) S DONE=1
-	. U OLDIO C F
+	; examine the job
+	; zshow "*" is "bdgilrv"
+	; b is break points
+	; d is devices
+	; g are global stats
+	; i is isvs
+	; l is locks
+	; r is routines with hash (similar to s)
+	; v is variables
+	; zshow "*" does not include:
+	; a -> autorelink information
+	; c -> external programs that are loaded (presumable with d &)
+	; s -> stack (use r instead)
+	if $get(^YDBWEB("YDBWEBZSY","XUSYS",$job,"CMD"))="EXAM" zshow "*":^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE")
 	;
-	; Capture String Pool Stats: Full size - Freed Data
+	; just grab the default region only. decreases the stats as a side effect from this utility
+	new glostat
+	new i for i=0:0 set i=$order(^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","G",i)) quit:'i  if ^(i)[$zgld,^(i)["DEFAULT" set glostat=^(i)
+	if glostat]"" new i for i=1:1:$length(glostat,",") do
+	. new eachstat set eachstat=$piece(glostat,",",i)
+	. new sub,obj set sub=$piece(eachstat,":"),obj=$piece(eachstat,":",2)
+	. set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","GSTAT",sub)=obj
+	;
+	; capture io statistics for this process
+	; zexcept: readonly,rewind
+	if $zconvert($zversion,"l")["linux" do
+	. new f set f="/proc/"_$job_"/io"
+	. open f:(readonly:rewind):0 else  quit
+	. use f
+	. new done set done=0 ; $zeof doesn't seem to work (https://github.com/yottadb/yottadb/issues/120)
+	. new x for  read x:0 use f do  quit:done
+	. . if $zconvert(x,"l")["read_bytes"  set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","RBYTE")=$piece(x,": ",2)
+	. . if $zconvert(x,"l")["write_bytes" set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","WBYTE")=$piece(x,": ",2) set done=1
+	. use oldio close f
+	;
+	; capture string pool stats: full size - freed data
 	; spstat 2nd piece is the actual size--but that fluctuates wildly
-	; I use the full size allocated (defaults at 0.10 MB) - the size freed. ;
-	n spstat s spstat=$view("spsize")
+	; i use the full size allocated (defaults at 0.10 mb) - the size freed. ;
+	new spstat set spstat=$view("spsize")
 	;
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","SPOOL")=spstat
-	S ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","HEAP_MEM")=$p(spstat,",",1)-$p(spstat,",",3)
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","SPOOL")=spstat
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","HEAP_MEM")=$piece(spstat,",",1)-$piece(spstat,",",3)
 	;
-	; Done. We can tell others we are ready
-	SET ^YDBWEB("YDBWEBZSY","XUSYS",$J,"JE","COMPLETE")=1
-	;
-	;
-	; Restore old IO and $R
-	U OLDIO
-	I %reference
-	Q 1
-	;
-WORK(MODE,FILTER) ; [Private] Main driver, Will release lock
-	; int MODE
-	; FILTER ref
-	N USERS,GROUP,PROCID
-	N TNAME,I,SORT,TAB
-	N $ES,$ET
-	n %PS,RTN,%OS,DONE
-	;
-	;Save $ZINTERRUPT, set new one
-	N OLDINT
-	S OLDINT=$ZINTERRUPT,$ZINTERRUPT="I $$JOBEXAM^%YDBWEBZU($ZPOSITION) S DONE=1"
-	;
-	;Clear old data
-	S ^YDBWEB("YDBWEBZSY","XUSYS","COMMAND")="Status"
-	;
-	S I=0 F  S I=$O(^YDBWEB("YDBWEBZSY","XUSYS",I)) Q:'I  K ^YDBWEB("YDBWEBZSY","XUSYS",I,"CMD"),^("JE")
-	;
-	; Counts; Turn on Ctrl-C. ;
-	; ZEXCEPT: CTRAP,NOESCAPE,NOFILTER
-	N USERS S USERS=0
-	U $P:(CTRAP=$C(3):NOESCAPE:NOFILTER)
-	;
-	;Go get the data
-	D UNIX(MODE,.USERS,.SORT)
-	;
-	;Now show the results
-	I USERS D
-	. ;D HEADER(.TAB),
-	. ; PID   PName   Device       Routine                                CPU Time
-	.  D USHOW(.TAB,.SORT,.FILTER)
-	. ;W !!,"Total ",USERS," user",$S(USERS>1:"s.",1:"."),!
-	. Q
-	;E  W !,"No current GT.M users.",!
+	; done. we can tell others we are ready
+	set ^YDBWEB("YDBWEBZSY","XUSYS",$job,"JE","COMPLETE")=1
 	;
 	;
-EXIT ;
-	L -^YDBWEB("YDBWEBZSY","XUSYS","COMMAND") ;Release lock and let others in
-	I $L($G(OLDINT)) S $ZINTERRUPT=OLDINT
-	U $P:CTRAP=""
-	Q
+	; restore old io and $r
+	use oldio
+	if %reference
+	quit 1
 	;
-ERR ;
-	U $P W !,$P($ZS,",",2,99),!
-	D EXIT
-	Q
+work(mode,filter) ; [private] main driver, will release lock
+	; int mode
+	; filter ref
+	new users,group,procid
+	new tname,i,sort,tab
+	new $estack,$etrap
+	new %ps,rtn,%os,done
 	;
-LW ;Lock wait
-	W !,"Someone else is running the System status now."
-	Q
+	;save $zinterrupt, set new one
+	new oldint
+	set oldint=$zinterrupt,$zinterrupt="i $$jobexam^%YDBWEBZU($zposition) s done=1"
 	;
-HEADER(TAB) ;Display Header
-	; ZEXCEPT: AB
-	W #
-	S IOM=+$$AUTOMARG
-	;W !,"YottaDB System Status users on ",$$DATETIME($H)
-	S TAB(0)=0,TAB(1)=6,TAB(2)=14,TAB(3)=18,TAB(4)=27,TAB(5)=46,TAB(6)=66
-	S TAB(7)=75,TAB(8)=85,TAB(9)=100,TAB(10)=110,TAB(11)=115,TAB(12)=123
-	S TAB(13)=130,TAB(14)=141,TAB(15)=150
-	U 0:FILTER="ESCAPE"
-	W !
-	D EACHHEADER("PID",TAB(0))
-	D EACHHEADER("PName",TAB(1))
-	D EACHHEADER("Device",TAB(2))
-	D EACHHEADER("Routine",TAB(4))
-	D EACHHEADER("CPU Time",TAB(6))
-	Q
-EACHHEADER(H,TAB) ; [Internal]
-	; ZEXCEPT: AB
-	N BOLD S BOLD=$C(27,91,49,109)
-	N RESET S RESET=$C(27,91,109)
-	W ?TAB,BOLD,H,RESET
-	QUIT
-USHOW(TAB,SORT,FILTER) ;Display job info, sorted by pid
-	; ZEXCEPT: AB
-	N SI,I
-	S SI=""
-	F  S SI=$ORDER(SORT(SI)) Q:SI=""  F I=1:1:SORT(SI) D
-	. N X,TNAME,PROCID,PROCNAME,CTIME,PS,PID,PLACE
-	. S X=SORT(SI,I)
-	. S PID=$P(X,"~",8)
-	. S PLACE=$G(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","INTERRUPT"))
-	. ; Debug
-	. ; I $D(^YDBWEB("YDBWEBZSY","XUSYS",PID)) ZWRITE ^(PID,*)
+	;clear old data
+	set ^YDBWEB("YDBWEBZSY","XUSYS","COMMAND")="STATUS"
+	;
+	set i=0 for  set i=$order(^YDBWEB("YDBWEBZSY","XUSYS",i)) quit:'i  kill ^YDBWEB("YDBWEBZSY","XUSYS",i,"CMD"),^("JE")
+	;
+	; counts; turn on ctrl-c. ;
+	; zexcept: ctrap,noescape,nofilter
+	new users set users=0
+	use $principal:(ctrap=$char(3):noescape:nofilter)
+	;
+	;go get the data
+	do unix(mode,.users,.sort)
+	;
+	;now show the results
+	if users do
+	. ;d header(.tab),
+	. ; pid   pname   device       routine                                cpu time
+	. do ushow(.tab,.sort,.filter)
+	. ;w !!,"total ",users," user",$s(users>1:"s.",1:"."),!
+	. quit
+	;e  w !,"no current gt.m users.",!
+	;
+	;
+exit ;
+	lock -^YDBWEB("YDBWEBZSY","XUSYS","COMMAND") ;release lock and let others in
+	if $length($get(oldint)) set $zinterrupt=oldint
+	use $principal:ctrap=""
+	quit
+	;
+err ;
+	use $principal write !,$piece($zs,",",2,99),!
+	do exit
+	quit
+	;
+lw ;lock wait
+	write !,"someone else is running the system status now."
+	quit
+	;
+header(tab) ;display header
+	; zexcept: ab
+	write #
+	set iom=+$$automarg
+	;w !,"yottadb system status users on ",$$datetime($h)
+	set tab(0)=0,tab(1)=6,tab(2)=14,tab(3)=18,tab(4)=27,tab(5)=46,tab(6)=66
+	set tab(7)=75,tab(8)=85,tab(9)=100,tab(10)=110,tab(11)=115,tab(12)=123
+	set tab(13)=130,tab(14)=141,tab(15)=150
+	use 0:filter="ESCAPE"
+	write !
+	do eachheader("PID",tab(0))
+	do eachheader("PName",tab(1))
+	do eachheader("Device",tab(2))
+	do eachheader("Routine",tab(4))
+	do eachheader("CPU Time",tab(6))
+	quit
+eachheader(h,tab) ; [internal]
+	; zexcept: ab
+	new bold set bold=$char(27,91,49,109)
+	new reset set reset=$char(27,91,109)
+	write ?tab,bold,h,reset
+	quit
+ushow(tab,sort,filter) ;display job info, sorted by pid
+	; zexcept: ab
+	new si,i
+	set si=""
+	for  set si=$order(sort(si)) quit:si=""  for i=1:1:sort(si) do
+	. new x,tname,procid,procname,ctime,ps,pid,place
+	. set x=sort(si,i)
+	. set pid=$piece(x,"~",8)
+	. set place=$get(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","INTERRUPT"))
 	. ; debug
-	. N RTNNAME S RTNNAME=$P(PLACE,"^",2)
-	. I $D(FILTER)=10 Q:$$FILTROUT(.FILTER,RTNNAME,PID)
-	. N DEV D DEV(.DEV,PID)
-	. S TNAME=$$DEVSEL(.DEV),PROCID=$P(X,"~",1) ; TNAME is Terminal Name, i.e. the device. ;
-	. S PROCNAME=$P(X,"~",5),CTIME=$P(X,"~",6)
-	. I $G(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","ZMODE"))="OTHER" S TNAME="Background-"_TNAME
-	. N UNAME S UNAME=$G(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","UNAME"))
-	. W PROCID,$C(9),PROCNAME,$C(9),TNAME,$C(9),PLACE,$C(9),CTIME,!
-	. Q
-	Q
+	. new rtnname set rtnname=$piece(place,"^",2)
+	. if $data(filter)=10 quit:$$filtrout(.filter,rtnname,pid)
+	. new dev do dev(.dev,pid)
+	. set tname=$$devsel(.dev),procid=$piece(x,"~",1) ; tname is terminal name, i.e. the device. ;
+	. set procname=$piece(x,"~",5),ctime=$piece(x,"~",6)
+	. if $get(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","ZMODE"))="OTHER" set tname="Background-"_tname
+	. new uname set uname=$get(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","UNAME"))
+	. write procid,$char(9),procname,$char(9),tname,$char(9),place,$char(9),ctime,!
+	. quit
+	quit
 	;
-FILTROUT(FILTER,RTNNAME,PID) ; [Private] Should this item be filtered out?
-	I RTNNAME="" QUIT 1  ; yes, filter out processes that didn't respond
-	; ^YDBWEB("YDBWEBZSY","XUSYS",24754,"JE","S",1)="JOBEXAM+22^%YDBWEBZSY"
-	; ^YDBWEB("YDBWEBZSY","XUSYS",24754,"JE","S",2)="JOBEXAM+2^%YDBWEBZU"
-	; ^YDBWEB("YDBWEBZSY","XUSYS",24754,"JE","S",3)="GETTASK+3^%ZTMS1    ($ZINTERRUPT) "
-	; ^YDBWEB("YDBWEBZSY","XUSYS",24754,"JE","S",4)="SUBMGR+1^%ZTMS1"
-	n found s found=0
-	N I F I=1:1 Q:'$D(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","S",I))  do  q:found
-	. i ^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","S",I)["Call-In" quit
-	. i ^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","S",I)["GTM$DMOD" quit
-	. n rtnName s rtnName=$p(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","S",I),"^",2)
-	. i rtnName[" " s rtnName=$p(rtnName," ")
-	. n each s each=""
-	. f  s each=$o(FILTER(each)) q:each=""  do  q:found
-	.. i $d(FILTER(rtnName)) s found=1
+filtrout(filter,rtnname,pid) ; [private] should this item be filtered out?
+	if rtnname="" quit 1  ; yes, filter out processes that didn't respond
+	new found set found=0
+	new i for i=1:1 quit:'$data(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","S",i))  do  quit:found
+	. if ^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","S",i)["call-in" quit
+	. if ^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","S",i)["gtm$dmod" quit
+	. new rtnname set rtnname=$piece(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","S",i),"^",2)
+	. if rtnname[" " set rtnname=$piece(rtnname," ")
+	. new each set each=""
+	. for  set each=$order(filter(each)) quit:each=""  do  quit:found
+	. . if $data(filter(rtnname)) set found=1
 	;
-	; If we find it, we don't want to filter it out. ;
-	QUIT 'found
+	; if we find it, we don't want to filter it out. ;
+	quit 'found
 	;
-DEV(DEV,PID) ; [Private] Device Processing
-	; Input: Global ^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","D"), PID
-	; Output: .DEV
-	; Device processing
-	; First pass, normalize output into single lines
-	N DEVCNT,X
-	S DEVCNT=0
-	N DI F DI=1:1 Q:'$D(^YDBWEB("YDBWEBZSY","XUSYS",PID,"JE","D",DI))  S X=^(DI) D
-	. I X["CLOSED" QUIT  ; Don't print closed devices
-	. I PID=$J,$E(X,1,2)="ps" QUIT  ; Don't print our ps device
-	. I $E(X)'=" " S DEVCNT=DEVCNT+1,DEV(DEVCNT)=X
-	. E  S DEV(DEVCNT)=DEV(DEVCNT)_" "_$$TRIM(X)
+dev(dev,pid) ; [private] device processing
+	new devcnt,x
+	set devcnt=0
+	new di for di=1:1 quit:'$data(^YDBWEB("YDBWEBZSY","XUSYS",pid,"JE","D",di))  set x=^(di) do
+	. if x["CLOSED" quit  ; don't print closed devices
+	. if pid=$job,$extract(x,1,2)="PS" quit  ; don't print our ps device
+	. if $extract(x)'=" " set devcnt=devcnt+1,dev(devcnt)=x
+	. else  set dev(devcnt)=dev(devcnt)_" "_$$trim(x)
 	;
-	; Second Pass, identify Devices
-	S DEVCNT="" F  S DEVCNT=$O(DEV(DEVCNT)) Q:DEVCNT=""  D
-	. S X=DEV(DEVCNT)
-	. N UPX S UPX=$ZCO(X,"U")
-	. I $E(X)=0 S DEV("4JOB")="0"
-	. I $P(X," ")["/dev/" S DEV("3TERM")=$P(X," ")
-	. I $P(X," ")["/",$P(X," ")'["/dev/" S DEV("1FILE")=$P(X," ")
-	. I UPX["SOCKET",UPX["SERVER" S DEV("2SOCK")=+$P(UPX,"PORT=",2)
-	QUIT
+	; second pass, identify devices
+	set devcnt="" for  set devcnt=$order(dev(devcnt)) quit:devcnt=""  do
+	. set x=dev(devcnt)
+	. new upx set upx=$zco(x,"u")
+	. if $extract(x)=0 set dev("4JOB")="0"
+	. if $piece(x," ")["/dev/" set dev("3TERM")=$piece(x," ")
+	. if $piece(x," ")["/",$piece(x," ")'["/dev/" set dev("1FILE")=$piece(x," ")
+	. if upx["SOCKET",upx["SERVER" set dev("2SOCK")=+$piece(upx,"PORT=",2)
+	quit
 	;
-DEVSEL(DEV) ; [Private] Select Device to Print
-	N DEVTYP S DEVTYP=$O(DEV(" "))
-	Q:DEVTYP="" ""
-	I DEVTYP="4JOB" Q "0"
-	I DEVTYP="2SOCK" Q "S"_DEV(DEVTYP)
-	I DEVTYP="3TERM" Q DEV(DEVTYP)
-	I DEVTYP="1FILE" Q DEV(DEVTYP)
-	Q "ERROR"
+devsel(dev) ; [private] select device to print
+	new devtyp set devtyp=$order(dev(" "))
+	quit:devtyp="" ""
+	if devtyp="4JOB" quit "0"
+	if devtyp="2SOCK" quit "S"_dev(devtyp)
+	if devtyp="3TERM" quit dev(devtyp)
+	if devtyp="1FILE" quit dev(devtyp)
+	quit "ERROR"
 	;
-TRIM(STR) ; [Private] Trim spaces
-	Q $$FUNC^%TRIM(STR)
+trim(str) ; [private] trim spaces
+	quit $$FUNC^%TRIM(str)
 	;
-DATETIME(HOROLOG) ;
-	Q $ZDATE(HOROLOG,"DD-MON-YY 24:60:SS")
+datetime(horolog) ;
+	quit $ZDATE(horolog,"dd-mon-yy 24:60:ss")
 	;
-UNIX(MODE,USERS,SORT) ;PUG/TOAD,FIS/KSB,VEN/SMH - Kernel System Status Report for GT.M
-	N %I,U,$ET,$ES
-	S $ET="D UERR^%YDBWEBZSY"
-	S %I=$I,U="^"
-	n procs
-	D INTRPTALL(.procs)
-	H .205 ; 200ms for TCP Read processes; 5ms b/c I am nice. ;
-	n procgrps
-	n done s done=0
-	n j s j=1
-	n i s i=0 f  s i=$o(procs(i)) q:'i  d
-	. s procgrps(j)=$g(procgrps(j))_procs(i)_" "
-	. i $l(procgrps(j))>220 s j=j+1 ; Max GT.M pipe len is 255
-	f j=1:1 q:'$d(procgrps(j))  d
-	. N %LINE,%TEXT,CMD
-	. I $ZV["Linux" S CMD="ps o pid,tty,stat,time,cmd -p"_procgrps(j)
-	. I $ZV["Darwin" S CMD="ps o pid,tty,stat,time,args -p"_procgrps(j)
-	. I $ZV["CYGWIN" S CMD="for p in "_procgrps(j)_"; do ps -p $p; done | awk '{print $1"" ""$5"" n/a ""$7"" ""$8"" n/a ""}'"
-	. ; ZEXCEPT: COMMAND,READONLY,SHELL
-	. O "ps":(SHELL="/bin/sh":COMMAND=CMD:READONLY)::"PIPE" U "ps"
-	. F  R %TEXT Q:$ZEO  D
-	.. S %LINE=$$VPE(%TEXT," ",U) ; parse each line of the ps output
-	.. Q:$P(%LINE,U)="PID"  ; header line
-	.. D JOBSET(%LINE,MODE,.USERS,.SORT)
-	. U %I C "ps"
-	Q
+unix(mode,users,sort) ;pug/toad,fis/ksb,ven/smh - kernel system status report for gt.m
+	new %i,u,$etrap,$estack
+	set $etrap="d uerr^%YDBWEBZSY"
+	set %i=$io,u="^"
+	new procs
+	do intrptall(.procs)
+	hang .205 ; 200ms for tcp read processes; 5ms b/c i am nice. ;
+	new procgrps
+	new done set done=0
+	new j set j=1
+	new i set i=0 for  set i=$order(procs(i)) quit:'i  do
+	. set procgrps(j)=$get(procgrps(j))_procs(i)_" "
+	. if $length(procgrps(j))>220 set j=j+1 ; max gt.m pipe len is 255
+	for j=1:1 quit:'$data(procgrps(j))  do
+	. new %line,%text,cmd
+	. if $zconvert($zversion,"l")["linux" set cmd="ps o pid,tty,stat,time,cmd -p"_procgrps(j)
+	. if $zconvert($zversion,"l")["darwin" set cmd="ps o pid,tty,stat,time,args -p"_procgrps(j)
+	. if $zconvert($zversion,"l")["cygwin" set cmd="for p in "_procgrps(j)_"; do ps -p $p; done | awk '{print $1"" ""$5"" n/a ""$7"" ""$8"" n/a ""}'"
+	. ; zexcept: command,readonly,shell
+	. open "ps":(shell="/bin/sh":command=cmd:readonly)::"pipe" use "ps"
+	. for  read %text quit:$zeo  do
+	. . set %line=$$vpe(%text," ",u) ; parse each line of the ps output
+	. . quit:$piece(%line,u)="PID"  ; header line
+	. . do jobset(%line,mode,.users,.sort)
+	. use %i close "ps"
+	quit
 	;
-UERR ;Linux Error
-	N ZE S ZE=$ZS,$EC="" U $P
-	ZSHOW "*"
-	Q  ;halt
+uerr ;linux error
+	new ze set ze=$zs,$ecode="" use $principal
+	zshow "*"
+	quit  ;halt
 	;
-JOBSET(%LINE,MODE,USERS,SORT) ;Get data from a Linux job
-	N %J
-	N UNAME,PS,TNAME,CTIME
-	S (UNAME,PS,TNAME,CTIME)=""
-	N %J,PID,PROCID S (%J,PID,PROCID)=$P(%LINE,U)
-	S TNAME=$P(%LINE,U,2) S:TNAME="?" TNAME="" ; TTY, ? if none
-	S PS=$P(%LINE,U,3) ; process STATE
-	S CTIME=$P(%LINE,U,4) ;cpu time
-	N PROCNAME S PROCNAME=$P(%LINE,U,5) ; process name
-	I PROCNAME["/" S PROCNAME=$P(PROCNAME,"/",$L(PROCNAME,"/")) ; get actual image name if path
-	I $D(^YDBWEB("YDBWEBZSY","XUSYS",%J)) S UNAME=$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"NM"))
-	E  S UNAME="unknown"
-	N SI S SI=$S(MODE=0:PID,MODE=1:CTIME,1:PID)
-	N I S I=$GET(SORT(SI))+1
-	S SORT(SI)=I
-	S SORT(SI,I)=PROCID_"~"_UNAME_"~"_PS_"~"_TNAME_"~"_PROCNAME_"~"_CTIME_"~"_""_"~"_PID
-	S USERS=USERS+1
-	Q
+jobset(%line,mode,users,sort) ;get data from a linux job
+	new %j
+	new uname,ps,tname,ctime
+	set (uname,ps,tname,ctime)=""
+	new %j,pid,procid set (%j,pid,procid)=$piece(%line,u)
+	set tname=$piece(%line,u,2) set:tname="?" tname="" ; tty, ? if none
+	set ps=$piece(%line,u,3) ; process state
+	set ctime=$piece(%line,u,4) ;cpu time
+	new procname set procname=$piece(%line,u,5) ; process name
+	if procname["/" set procname=$piece(procname,"/",$length(procname,"/")) ; get actual image name if path
+	if $data(^YDBWEB("YDBWEBZSY","XUSYS",%j)) set uname=$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"NM"))
+	else  set uname="UNKNOWN"
+	new si set si=$select(mode=0:pid,mode=1:ctime,1:pid)
+	new i set i=$get(sort(si))+1
+	set sort(si)=i
+	set sort(si,i)=procid_"~"_uname_"~"_ps_"~"_tname_"~"_procname_"~"_ctime_"~"_""_"~"_pid
+	set users=users+1
+	quit
 	;
-VPE(%OLDSTR,%OLDDEL,%NEWDEL) ; $PIECE extract based on variable length delimiter
-	N %LEN,%PIECE,%NEWSTR
-	S %OLDDEL=$G(%OLDDEL) I %OLDDEL="" S %OLDDEL=" "
-	S %LEN=$L(%OLDDEL)
-	; each %OLDDEL-sized chunk of %OLDSTR that might be delimiter
-	S %NEWDEL=$G(%NEWDEL) I %NEWDEL="" S %NEWDEL="^"
+vpe(%oldstr,%olddel,%newdel) ; $piece extract based on variable length delimiter
+	new %len,%piece,%newstr
+	set %olddel=$get(%olddel) if %olddel="" set %olddel=" "
+	set %len=$length(%olddel)
+	; each %olddel-sized chunk of %oldstr that might be delimiter
+	set %newdel=$get(%newdel) if %newdel="" set %newdel="^"
 	; each piece of the old string
-	S %NEWSTR="" ; new reformatted string to retun
-	F  Q:%OLDSTR=""  D
-	. S %PIECE=$P(%OLDSTR,%OLDDEL)
-	. S $P(%OLDSTR,%OLDDEL)=""
-	. S %NEWSTR=%NEWSTR_$S(%NEWSTR="":"",1:%NEWDEL)_%PIECE
-	. F  Q:%OLDDEL'=$E(%OLDSTR,1,%LEN)  S $E(%OLDSTR,1,%LEN)=""
-	Q %NEWSTR
+	set %newstr="" ; new reformatted string to retun
+	for  quit:%oldstr=""  do
+	. set %piece=$piece(%oldstr,%olddel)
+	. set $piece(%oldstr,%olddel)=""
+	. set %newstr=%newstr_$select(%newstr="":"",1:%newdel)_%piece
+	. for  quit:%olddel'=$extract(%oldstr,1,%len)  set $extract(%oldstr,1,%len)=""
+	quit %newstr
 	;
-	; Sam's entry points
-UNIXLSOF(procs) ; [Public] - Get all processes
+	; sam's entry points
+unixlsof(procs) ; [public] - get all processes
 	; (return) .procs(n)=unix process number
-	; ZEXCEPT: shell,parse
-	n %cmd s %cmd="lsof -t $ydb_dist/yottadb && lsof -t $ydb_dist/mumps" ;_$view("gvfile","DEFAULT")
+	; zexcept: shell,parse
+	new %cmd set %cmd="lsof -t $ydb_dist/yottadb && lsof -t $ydb_dist/mumps" ;_$view("gvfile","default")
 	;s %cmd="ps ax | grep -i yottadb | awk '{print $1}'"
-	i $ZV["CYGWIN" s %cmd="ps -a | grep yottadb | grep -v grep | awk '{print $1}'"
-	n oldio s oldio=$IO
-	o "lsof":(shell="/bin/bash":command=%cmd:parse)::"pipe"
-	u "lsof"
-	n i,k,tprocs f k=1:1 q:$ZEOF  r tprocs(k):1
-	s k="" f  s k=$o(tprocs(k)) q:k=""  d
-	. i tprocs(k)="" q 
-	. i tprocs(k)=$j q
-	. i $g(currentjob),tprocs(k)=currentjob q
-	. s procs($i(i))=tprocs(k)
-	u oldio c "lsof"
-	n cnt s cnt=0
-	n i f i=0:0 s i=$o(procs(i)) q:'i  i $i(cnt)
-	quit:$Q cnt quit
+	if $zconvert($zversion,"l")["cygwin" set %cmd="ps -a | grep yottadb | grep -v grep | awk '{print $1}'"
+	new oldio set oldio=$io
+	open "lsof":(shell="/bin/bash":command=%cmd:parse)::"pipe"
+	use "lsof"
+	new i,k,tprocs for k=1:1 quit:$zeof  read tprocs(k):1
+	set k="" for  set k=$order(tprocs(k)) quit:k=""  do
+	. if tprocs(k)="" quit 
+	. if tprocs(k)=$job quit
+	. if $get(currentjob),tprocs(k)=currentjob quit
+	. set procs($increment(i))=tprocs(k)
+	use oldio close "lsof"
+	new cnt set cnt=0
+	new i for i=0:0 set i=$order(procs(i)) quit:'i  if $increment(cnt)
+	quit:$quit cnt quit
 	;
-INTRPT(%J) ; [Public] Send mupip interrupt (currently SIGUSR1)
-	N SIGUSR1,A
-	I $ZV["Linux" S SIGUSR1=10
-	I $ZV["Darwin" S SIGUSR1=30
-	I $ZV["CYGWIN" S SIGUSR1=30
-	;N % S %=$ZSIGPROC(%J,"SIGUSR1")
-	D RunShellCommand^%YDBUTILS("$ydb_dist/mupip INTRPT "_%J,.A)
-	QUIT
+intrpt(%j) ; [public] send mupip interrupt (currently sigusr1)
+	new sigusr1,a
+	if $zconvert($zversion,"l")["linux" set sigusr1=10
+	if $zconvert($zversion,"l")["darwin" set sigusr1=30
+	if $zconvert($zversion,"l")["cygwin" set sigusr1=30
+	;n % s %=$zsigproc(%j,"sigusr1")
+	do RunShellCommand^%YDBUTILS("$ydb_dist/mupip INTRPT "_%j,.a)
+	quit
 	;
-INTRPTALL(procs) ; [Public] Send mupip interrupt to every single database process
-	N SIGUSR1,A
-	I $ZV["Linux" S SIGUSR1=10
-	I $ZV["Darwin" S SIGUSR1=30
-	I $ZV["CYGWIN" S SIGUSR1=30
-	; Collect processes
-	D UNIXLSOF(.procs)
-	; Signal all processes
-	N i,% s i=0 f  s i=$o(procs(i)) q:'i  D RunShellCommand^%YDBUTILS("$ydb_dist/mupip INTRPT "_procs(i),.A) ;S %=$ZSIGPROC(procs(i),"SIGUSR1")
-	QUIT
+intrptall(procs) ; [public] send mupip interrupt to every single database process
+	new sigusr1,a
+	if $zconvert($zversion,"l")["linux" set sigusr1=10
+	if $zconvert($zversion,"l")["darwin" set sigusr1=30
+	if $zconvert($zversion,"l")["cygwin" set sigusr1=30
+	; collect processes
+	do unixlsof(.procs)
+	; signal all processes
+	new i,% set i=0 for  set i=$order(procs(i)) quit:'i  do RunShellCommand^%YDBUTILS("$ydb_dist/mupip INTRPT "_procs(i),.a) ;s %=$zsigproc(procs(i),"sigusr1")
+	quit
 	;
-HALTALL ; [Public] Gracefully halt all jobs accessing current database
-	; Calls ^XUSCLEAN then HALT^%YDBWEBZU
-	;Clear old data
-	S ^YDBWEB("YDBWEBZSY","XUSYS","COMMAND")="Status"
-	N I F I=0:0 S I=$O(^YDBWEB("YDBWEBZSY","XUSYS",I)) Q:'I  K ^YDBWEB("YDBWEBZSY","XUSYS",I,"JE"),^("INTERUPT")
+haltall ; [public] gracefully halt all jobs accessing current database
+	; calls ^xusclean then halt^%YDBWEBZU
+	;clear old data
+	set ^YDBWEB("YDBWEBZSY","XUSYS","COMMAND")="STATUS"
+	new i for i=0:0 set i=$order(^YDBWEB("YDBWEBZSY","XUSYS",i)) quit:'i  kill ^YDBWEB("YDBWEBZSY","XUSYS",i,"JE"),^("INTERUPT")
 	;
-	; Get jobs accessing this database
-	n procs d UNIXLSOF(.procs)
+	; get jobs accessing this database
+	new procs do unixlsof(.procs)
 	;
-	; Tell them to stop
-	n i f i=1:1 q:'$d(procs(i))  s ^YDBWEB("YDBWEBZSY","XUSYS",procs(i),"CMD")="HALT"
-	K ^YDBWEB("YDBWEBZSY","XUSYS",$J,"CMD")  ; but not us
+	; tell them to stop
+	new i for i=1:1 quit:'$data(procs(i))  set ^YDBWEB("YDBWEBZSY","XUSYS",procs(i),"CMD")="HALT"
+	kill ^YDBWEB("YDBWEBZSY","XUSYS",$job,"CMD")  ; but not us
 	;
-	; Sayonara
-	N J F J=0:0 S J=$O(^YDBWEB("YDBWEBZSY","XUSYS",J)) Q:'J  D INTRPT(J)
+	; sayonara
+	new j for j=0:0 set j=$order(^YDBWEB("YDBWEBZSY","XUSYS",j)) quit:'j  do intrpt(j)
 	;
-	; Wait; Long hang for TCP jobs that can't receive interrupts for .2 seconds
-	H .25
+	; wait; long hang for tcp jobs that can't receive interrupts for .2 seconds
+	hang .25
 	;
-	; Check that they are all dead. If not, kill it "softly". ;
-	; Need to do this for node and java processes that won't respond normally. ;
-	N J F J=0:0 S J=$O(^YDBWEB("YDBWEBZSY","XUSYS",J)) Q:'J  I $zgetjpi(J,"isprocalive"),J'=$J D KILL(J)
+	; check that they are all dead. if not, kill it "softly". ;
+	; need to do this for node and java processes that won't respond normally. ;
+	new j for j=0:0 set j=$order(^YDBWEB("YDBWEBZSY","XUSYS",j)) quit:'j  if $zgetjpi(j,"isprocalive"),j'=$job do kill(j)
 	;
 	quit
 	;
-HALTONE(%J) ; [Public] Halt a single process
-	S ^YDBWEB("YDBWEBZSY","XUSYS",%J,"CMD")="HALT"
-	D INTRPT(%J)
-	H .25 ; Long hang for TCP jobs that can't receive interrupts
-	I $zgetjpi(%J,"isprocalive") D KILL(%J)
-	QUIT
-	;
-KILL(%J) ; [Private] Kill %J
-	; ZEXCEPT: shell
-	n %cmd s %cmd="kill "_%J
-	o "kill":(shell="/bin/sh":command=%cmd)::"pipe" u "kill" c "kill"
+haltone(%j) ; [public] halt a single process
+	set ^YDBWEB("YDBWEBZSY","XUSYS",%j,"CMD")="halt"
+	do intrpt(%j)
+	hang .25 ; long hang for tcp jobs that can't receive interrupts
+	if $zgetjpi(%j,"isprocalive") do kill(%j)
 	quit
 	;
-ZJOB(PID) G JOBVIEWZ ; [Public, Interactive] Examine a specific job -- written by OSEHRA/SMH
-EXAMJOB(PID) G JOBVIEWZ ;
-VIEWJOB(PID) G JOBVIEWZ ;
-JOBVIEW(PID) G JOBVIEWZ ;
-JOBVIEWZ ;
-	; ZEXCEPT: CTRAP,NOESCAPE,NOFILTER,PID
-	U $P:(CTRAP=$C(3):NOESCAPE:NOFILTER)
-	I $G(PID) D JOBVIEWZ2(PID) QUIT
-	D ^%YDBWEBZSY
-	N X,DONE
-	S DONE=0
-	; Nasty read loop. I hate read loops
-	F  D  Q:DONE
-	. R !,"Enter a job number to examine (^ to quit): ",X:$G(DTIME,300)
-	. E  S DONE=1 QUIT
-	. I X="^" S DONE=1 QUIT
-	. I X="" D ^%YDBWEBZSY QUIT
-	. I X["?" D ^%YDBWEBZSY QUIT
+kill(%j) ; [private] kill %j
+	; zexcept: shell
+	new %cmd set %cmd="kill "_%j
+	open "kill":(shell="/bin/sh":command=%cmd)::"pipe" use "kill" close "kill"
+	quit
+	;
+zjob(pid) goto jobviewz ; [public, interactive] examine a specific job -- written by osehra/smh
+examjob(pid) goto jobviewz ;
+viewjob(pid) goto jobviewz ;
+jobview(pid) goto jobviewz ;
+jobviewz ;
+	; zexcept: ctrap,noescape,nofilter,pid
+	use $principal:(ctrap=$char(3):noescape:nofilter)
+	if $get(pid) do jobviewz2(pid) quit
+	do ^%YDBWEBZSY
+	new x,done
+	set done=0
+	; nasty read loop. i hate read loops
+	for  do  quit:done
+	. read !,"enter a job number to examine (^ to quit): ",x:$get(dtime,300)
+	. else  set done=1 quit
+	. if x="^" set done=1 quit
+	. if x="" do ^%YDBWEBZSY quit
+	. if x["?" do ^%YDBWEBZSY quit
 	. ;
-	. D JOBVIEWZ2(X)
-	. D ^%YDBWEBZSY
-	QUIT
+	. do jobviewz2(x)
+	. do ^%YDBWEBZSY
+	quit
 	;
 PROCESSDETAILS
-	N i,args,currentjob
-	f i=1:1:$l($zcmdline," ") s args(i)=$p($zcmdline," ",i)
-	N X,CMD
-	S X=args(1)
-	S CMD=$G(args(2))
-	D JOBVIEWZ2(X,CMD)
-	Q
+processdetails
+	new i,args,currentjob
+	for i=1:1:$length($zcmdline," ") set args(i)=$piece($zcmdline," ",i)
+	new x,cmd
+	set x=args(1)
+	set cmd=$get(args(2))
+	do jobviewz2(x,cmd)
+	quit
 	;	
 	;
-JOBVIEWZ2(X,CMD) ; [Private] View Job Information
+jobviewz2(x,cmd) ; [private] view job information
 	;	
 	;	
 	;	
 	;	
-	I X'?1.N W !,"Not a valid job number." Q
-	I '$zgetjpi(X,"isprocalive") W !,"This process does not exist" Q
+	if x'?1.n write !,"not a valid job number." quit
+	if '$zgetjpi(x,"isprocalive") write !,"this process does not exist" quit
 	;
 	;	
-	N EXAMREAD
-	N DONEONE S DONEONE=0
-	D ; This is an inner read loop to refresh a process. ;
-	. N % S %=$$EXAMINEJOBBYPID(X)
-	. I %'=0 W !,"The job didn't respond to examination for 305 ms. You may try again." S DONEONE=1 QUIT
-	. D PRINTEXAMDATA(X,CMD)
-	. ;W "Enter to Refersh, V for variables, I for ISVs, K to kill",!
-	. ;W "L to load variables into your ST and quit, ^ to go back: ",!
-	. ;W "D to debug (broken), Z to zshow all data for debugging."
-	. ;R EXAMREAD:$G(DTIME,300)
-	. S DONEONE=1
-	. ;I EXAMREAD="^" S DONEONE=1
-	. ;I $TR(EXAMREAD,"k","K")="K" D HALTONE(X) S DONEONE=1
-	QUIT
+	new examread
+	new doneone set doneone=0
+	do ; this is an inner read loop to refresh a process. ;
+	. new % set %=$$examinejobbypid(x)
+	. if %'=0 write !,"the job didn't respond to examination for 305 ms. you may try again." set doneone=1 quit
+	. do printexamdata(x,cmd)
+	. ;w "enter to refersh, v for variables, i for isvs, k to kill",!
+	. ;w "l to load variables into your st and quit, ^ to go back: ",!
+	. ;w "d to debug (broken), z to zshow all data for debugging."
+	. ;r examread:$g(dtime,300)
+	. set doneone=1
+	. ;i examread="^" s doneone=1
+	. ;i $tr(examread,"k","k")="k" d haltone(x) s doneone=1
+	quit
 	;
-EXAMINEJOBBYPID(%J) ; [$$, Public, Silent] Examine Job by PID; Non-zero output failure
-	Q:'$ZGETJPI(%J,"isprocalive") -1
-	K ^YDBWEB("YDBWEBZSY","XUSYS",%J,"CMD"),^("JE")
-	S ^YDBWEB("YDBWEBZSY","XUSYS",%J,"CMD")="EXAM"
-	D INTRPT(%J)
-	N I F I=1:1:5 H .001 Q:$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE"))
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) H .2
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) H .2
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) Q -1
-	QUIT 0
+examinejobbypid(%j) ; [$$, public, silent] examine job by pid; non-zero output failure
+	quit:'$zgetjpi(%j,"isprocalive") -1
+	kill ^YDBWEB("YDBWEBZSY","XUSYS",%j,"CMD"),^("JE")
+	set ^YDBWEB("YDBWEBZSY","XUSYS",%j,"CMD")="EXAM"
+	do intrpt(%j)
+	new i for i=1:1:5 hang .001 quit:$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE"))
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) hang .2
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) hang .2
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) quit -1
+	quit 0
 	;
-PRINTEXAMDATA(%J,FLAG) ; [Private] Print the exam data
-	; ^YDBWEB("YDBWEBZSY","XUSYS",8563,"JE","INTERRUPT")="GETTASK+3^%ZTMS1"
-	; ^YDBWEB("YDBWEBZSY","XUSYS",8563,"JE","G",0)="GLD:*,REG:*,SET:25610,KIL:593,GET:12284,... ;
-	; ^YDBWEB("YDBWEBZSY","XUSYS",8563,"JE","ZMODE")="OTHER"
-	N YDBWEBZSY M YDBWEBZSY=^YDBWEB("YDBWEBZSY","XUSYS",%J)
+printexamdata(%j,flag) ; [private] print the exam data
+	new ydbwebzsy merge ydbwebzsy=^YDBWEB("YDBWEBZSY","XUSYS",%j)
 	;
-	N BOLD S BOLD="" ;$C(27,91,49,109)
-	N RESET S RESET="" ;$C(27,91,109)
-	N UNDER S UNDER="" ;$C(27,91,52,109)
-	N DIM S DIM=$$AUTOMARG()
+	new bold set bold="" ;$c(27,91,49,109)
+	new reset set reset="" ;$c(27,91,109)
+	new under set under="" ;$c(27,91,52,109)
+	new dim set dim=$$automarg()
 	;
-	; List Variables?
-	I $TR(FLAG,"v","V")="V" D  QUIT
-	. ;W BOLD,"Variables: ",RESET,!
-	. N V F V=0:0 S V=$O(YDBWEBZSY("JE","V",V)) Q:'V  W YDBWEBZSY("JE","V",V),!
+	; list variables?
+	if $translate(flag,"V","v")="v" do  quit
+	. ;w bold,"variables: ",reset,!
+	. new v for v=0:0 set v=$order(ydbwebzsy("JE","V",v)) quit:'v  write ydbwebzsy("JE","V",v),!
 	;
 	;
-	; List ISVs?
-	I $TR(FLAG,"i","I")="I" D  QUIT
-	. ;W BOLD,"ISVs: ",RESET,!
-	. N I F I=0:0 S I=$O(YDBWEBZSY("JE","I",I)) Q:'I  W YDBWEBZSY("JE","I",I),!
+	; list isvs?
+	if $translate(flag,"I","i")="i" do  quit
+	. ;w bold,"isvs: ",reset,!
+	. new i for i=0:0 set i=$order(ydbwebzsy("JE","I",i)) quit:'i  write ydbwebzsy("JE","I",i),!
 	;
-	; Normal Display: Job Info, Stack, Locks, Devices
-	;W UNDER,"JOB INFORMATION FOR "_%J," (",$ZDATE(YDBWEBZSY(0),"YYYY-MON-DD 24:60:SS"),")",RESET,!
-	W BOLD,"AT: ",RESET,YDBWEBZSY("JE","INTERRUPT"),": ",$G(YDBWEBZSY("JE","codeline")),!!
+	; normal display: job info, stack, locks, devices
+	;w under,"job information for "_%j," (",$zdate(ydbwebzsy(0),"yyyy-mon-dd 24:60:ss"),")",reset,!
+	write bold,"at: ",reset,ydbwebzsy("JE","INTERRUPT"),": ",$get(ydbwebzsy("JE","CODELINE")),!!
 	;
-	N CNT S CNT=1
-	W BOLD,"Stack: ",RESET,!
-	; Stack is funny -- print just to $ZINTERRUPT
-	N S F S=$O(YDBWEBZSY("JE","R"," "),-1):-1:1 Q:YDBWEBZSY("JE","R",S)["$ZINTERRUPT"  D
-	. N PLACE S PLACE=$P(YDBWEBZSY("JE","R",S),":")
-	. I $E(PLACE)=" " QUIT  ; GTM adds an extra level sometimes for display -- messes me up
-	. W CNT,". "
-	. I PLACE'["GTM$DMOD" W PLACE,?40,$T(@PLACE)
-	. W !
-	. S CNT=CNT+1
-	W CNT,". ",YDBWEBZSY("JE","INTERRUPT"),":",?40,$G(YDBWEBZSY("JE","codeline")),!
+	new cnt set cnt=1
+	write bold,"Stack: ",reset,!
+	; stack is funny -- print just to $zinterrupt
+	new s for s=$order(ydbwebzsy("JE","R"," "),-1):-1:1 quit:$zconvert(ydbwebzsy("JE","R",s),"l")["$zinterrupt"  do
+	. new place set place=$piece(ydbwebzsy("JE","R",s),":")
+	. if $extract(place)=" " quit  ; gtm adds an extra level sometimes for display -- messes me up
+	. write cnt,". "
+	. if place'["GTM$DMOD" write place,?40,$text(@place)
+	. write !
+	. set cnt=cnt+1
+	write cnt,". ",ydbwebzsy("JE","INTERRUPT"),":",?40,$get(ydbwebzsy("JE","CODELINE")),!
 	;
-	W !
-	W BOLD,"Locks: ",RESET,!
-	N L F L=0:0 S L=$O(YDBWEBZSY("JE","L",L)) Q:'L  W YDBWEBZSY("JE","L",L),!
+	write !
+	write bold,"Locks: ",reset,!
+	new l for l=0:0 set l=$order(ydbwebzsy("JE","L",l)) quit:'l  write ydbwebzsy("JE","L",l),!
 	;
-	W !
-	W BOLD,"Devices: ",RESET,!
-	N D F D=0:0 S D=$O(YDBWEBZSY("JE","D",D)) Q:'D  W YDBWEBZSY("JE","D",D),!
+	write !
+	write bold,"Devices: ",reset,!
+	new d for d=0:0 set d=$order(ydbwebzsy("JE","D",d)) quit:'d  write ydbwebzsy("JE","D",d),!
 	;
-	W !
-	W BOLD,"Breakpoints: ",RESET,!
-	N B F B=0:0 S B=$O(YDBWEBZSY("JE","B",B)) Q:'B  W YDBWEBZSY("JE","B",B),!
+	write !
+	write bold,"Breakpoints: ",reset,!
+	new b for b=0:0 set b=$order(ydbwebzsy("JE","B",b)) quit:'b  write ydbwebzsy("JE","B",b),!
 	;
-	W !
-	W BOLD,"Global Stats for default region: ",RESET,!
-	N G S G=""
-	N SLOTS S SLOTS=+DIM\15
-	N SLOT S SLOT=0
-	F  S G=$O(YDBWEBZSY("JE","GSTAT",G)) Q:G=""  D
-	. I G="GLD" QUIT
-	. N V S V=YDBWEBZSY("JE","GSTAT",G)
-	. I V>9999 S V=$J(V/1024,"",0)_"k"
-	. I V>9999,V["k" S V=$J(V/1024,"",0)_"m"
-	. W ?(SLOT*15),G,": ",V," "
-	. S SLOT=SLOT+1
-	. I SLOT+1>SLOTS S SLOT=0 W !
-	W !!
+	write !
+	write bold,"Global stats for default region: ",reset,!
+	write !!
+	new g set g=""
+	new slots set slots=+dim\15
+	new slot set slot=0
+	for  set g=$order(ydbwebzsy("JE","GSTAT",g)) quit:g=""  do
+	. if g="gld" quit
+	. new v set v=ydbwebzsy("JE","GSTAT",g)
+	. if v>9999 set v=$justify(v/1024,"",0)_"k"
+	. if v>9999,v["k" set v=$justify(v/1024,"",0)_"m"
+	. write ?(slot*15),g,": ",v," "
+	. set slot=slot+1
+	. if slot+1>slots set slot=0 write !
+	write !!
 	;
-	W BOLD,"String Pool (size,currently used,freed): ",RESET,YDBWEBZSY("JE","SPOOL"),!!
-	QUIT
+	write bold,"string pool (size,currently used,freed): ",reset,ydbwebzsy("JE","SPOOL"),!!
+	quit
 	;
-LOADST ; [Private] Load the symbol table into the current process
-	KILL
-	N V F V=0:0 S V=$O(^TMP("YDBWEBZSY",$J,V)) Q:'V  S @^(V)
-	K ^TMP("YDBWEBZSY",$J)
-	QUIT
+loadst ; [private] load the symbol table into the current process
+	kill
+	new v for v=0:0 set v=$order(^tmp("YDBWEBZSY",$job,v)) quit:'v  set @^(v)
+	kill ^tmp("YDBWEBZSY",$job)
+	quit
 	;
-DEBUG(%J) ; [Private] Debugging logic
-		Q
-	Q:'$ZGETJPI(%J,"isprocalive") -1
-	K ^YDBWEB("YDBWEBZSY","XUSYS",%J,"CMD"),^("JE")
-	S ^YDBWEB("YDBWEBZSY","XUSYS",%J,"CMD")="DEBUG"
-	D INTRPT(%J)
-	N I F I=1:1:5 H .001 Q:$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE"))
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) H .2
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) H .1
-	I '$G(^YDBWEB("YDBWEBZSY","XUSYS",%J,"JE","COMPLETE")) Q -1
-	N YDBWEBZSY M YDBWEBZSY=^YDBWEB("YDBWEBZSY","XUSYS",%J)
+debug(%j) ; [private] debugging logic
+		quit
+	quit:'$zgetjpi(%j,"isprocalive") -1
+	kill ^YDBWEB("YDBWEBZSY","XUSYS",%j,"CMD"),^("JE")
+	set ^YDBWEB("YDBWEBZSY","XUSYS",%j,"CMD")="DEBUG"
+	do intrpt(%j)
+	new i for i=1:1:5 hang .001 quit:$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE"))
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) hang .2
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) hang .1
+	if '$get(^YDBWEB("YDBWEBZSY","XUSYS",%j,"JE","COMPLETE")) quit -1
+	new ydbwebzsy merge ydbwebzsy=^YDBWEB("YDBWEBZSY","XUSYS",%j)
 	;
-	N BOLD S BOLD=$C(27,91,49,109)
-	N RESET S RESET=$C(27,91,109)
-	N UNDER S UNDER=$C(27,91,52,109)
-	N DIM S DIM=$$AUTOMARG()
+	new bold set bold=$char(27,91,49,109)
+	new reset set reset=$char(27,91,109)
+	new under set under=$char(27,91,52,109)
+	new dim set dim=$$automarg()
 	;
-	; Normal Display: Job Info, Stack, Locks, Devices
-	W #
-	W UNDER,"JOB INFORMATION FOR "_%J," (",$ZDATE(YDBWEBZSY(0),"YYYY-MON-DD 24:60:SS"),")",RESET,!
-	W BOLD,"AT: ",RESET,YDBWEBZSY("JE","INTERRUPT"),": ",YDBWEBZSY("JE","codeline"),!!
+	; normal display: job info, stack, locks, devices
+	write #
+	write under,"job information for "_%j," (",$zdate(ydbwebzsy(0),"yyyy-mon-dd 24:60:ss"),")",reset,!
+	write bold,"at: ",reset,ydbwebzsy("JE","INTERRUPT"),": ",ydbwebzsy("JE","CODELINE"),!!
 	;
-	N CNT S CNT=1
-	W BOLD,"Stack: ",RESET,!
-	; Stack is funny -- print just to $ZINTERRUPT
-	N S F S=$O(YDBWEBZSY("JE","R"," "),-1):-1:1 Q:YDBWEBZSY("JE","R",S)["$ZINTERRUPT"  D
-	. N PLACE S PLACE=$P(YDBWEBZSY("JE","R",S),":")
-	. I $E(PLACE)=" " QUIT  ; GTM adds an extra level sometimes for display -- messes me up
-	. W CNT,". "
-	. I PLACE'["GTM$DMOD" W PLACE,?40,$T(@PLACE)
-	. W !
-	. S CNT=CNT+1
-	W CNT,". ",YDBWEBZSY("JE","INTERRUPT"),":",?40,YDBWEBZSY("JE","codeline"),!
+	new cnt set cnt=1
+	write bold,"Stack: ",reset,!
+	; stack is funny -- print just to $zinterrupt
+	new s for s=$order(ydbwebzsy("JE","R"," "),-1):-1:1 quit:ydbwebzsy("JE","R",s)["$ZINTERRUPT"  do
+	. new place set place=$piece(ydbwebzsy("JE","R",s),":")
+	. if $extract(place)=" " quit  ; gtm adds an extra level sometimes for display -- messes me up
+	. write cnt,". "
+	. if place'["GTM$DMOD" write place,?40,$text(@place)
+	. write !
+	. set cnt=cnt+1
+	write cnt,". ",ydbwebzsy("JE","INTERRUPT"),":",?40,ydbwebzsy("JE","CODELINE"),!
 	;
-	W !
-	W BOLD,"Locks: ",RESET,!
-	N L F L=0:0 S L=$O(YDBWEBZSY("JE","L",L)) Q:'L  W YDBWEBZSY("JE","L",L),!
+	write !
+	write bold,"locks: ",reset,!
+	new l for l=0:0 set l=$order(ydbwebzsy("JE","L",l)) quit:'l  write ydbwebzsy("JE","L",l),!
 	;
-	W !
-	W BOLD,"Devices: ",RESET,!
-	N D F D=0:0 S D=$O(YDBWEBZSY("JE","D",D)) Q:'D  W YDBWEBZSY("JE","D",D),!
-	W !
-	W BOLD,"Breakpoints: ",RESET,!
-	N B F B=0:0 S B=$O(YDBWEBZSY("JE","B",B)) Q:'B  W YDBWEBZSY("JE","B",B),!
+	write !
+	write bold,"devices: ",reset,!
+	new d for d=0:0 set d=$order(ydbwebzsy("JE","D",d)) quit:'d  write ydbwebzsy("JE","D",d),!
+	write !
+	write bold,"breakpoints: ",reset,!
+	new b for b=0:0 set b=$order(ydbwebzsy("JE","B",b)) quit:'b  write ydbwebzsy("JE","B",b),!
 	;
-	n x r "press key to continue",x
-	QUIT
+	new x read "press key to continue",x
+	quit
 	;
-AUTOMARG() ;RETURNS IOM^IOSL IF IT CAN and resets terminal to those dimensions; GT.M
-	; ZEXCEPT: APC,TERM,NOECHO,WIDTH
-	I $PRINCIPAL'["/dev/" quit:$Q "" quit
-	U $PRINCIPAL:(WIDTH=0)
-	N %I,%T,ESC,DIM S %I=$I,%T=$T D
+automarg() ;returns iom^iosl if it can and resets terminal to those dimensions; gt.m
+	; zexcept: apc,term,noecho,width
+	if $principal'["/dev/" quit:$quit "" quit
+	use $principal:(width=0)
+	new %i,%t,esc,dim set %i=$io,%t=$test do
 	. ; resize terminal to match actual dimensions
-	. S ESC=$C(27)
-	. U $P:(TERM="R":NOECHO)
-	. W ESC,"7",ESC,"[r",ESC,"[999;999H",ESC,"[6n"
-	. R DIM:1 E  Q
-	. W ESC,"8"
-	. I DIM?.APC U $P:(TERM="":ECHO) Q
-	. I $L($G(DIM)) S DIM=+$P(DIM,";",2)_"^"_+$P(DIM,"[",2)
-	. U $P:(TERM="":ECHO:WIDTH=+$P(DIM,";",2):LENGTH=+$P(DIM,"[",2))
+	. set esc=$char(27)
+	. use $principal:(term="r":noecho)
+	. write esc,"7",esc,"[r",esc,"[999;999h",esc,"[6n"
+	. read dim:1 else  quit
+	. write esc,"8"
+	. if dim?.apc use $principal:(term="":echo) quit
+	. if $length($get(dim)) set dim=+$piece(dim,";",2)_"^"_+$piece(dim,"[",2)
+	. use $principal:(term="":echo:width=+$piece(dim,";",2):length=+$piece(dim,"[",2))
 	; restore state
-	U %I I %T
-	; Extra just for ^ZJOB - don't wrap
-	U $PRINCIPAL:(WIDTH=0)
-	Q:$Q $S($G(DIM):DIM,1:"") 
-	Q
+	use %i if %t
+	; extra just for ^zjob - don't wrap
+	use $principal:(width=0)
+	quit:$quit $select($get(dim):dim,1:"") 
+	quit
 	;
 	;
 	;
