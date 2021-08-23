@@ -39,7 +39,7 @@
           v-if="$q.screen.gt.xs"
           class="GL__toolbar-link q-ml-xs q-gutter-md text-body2 text-weight-bold row items-center "
         >
-          <q-btn-dropdown flat :label="$t('toolbar.system_management')" dense>
+          <q-btn-dropdown no-caps flat :label="$t('toolbar.system_management')" dense>
             <q-list>
               <q-item clickable v-close-popup :to="'/processes'" dense>
                 {{ $t("toolbar.running_processes") }}
@@ -49,7 +49,7 @@
               </q-item>
             </q-list>
           </q-btn-dropdown>
-          <q-btn-dropdown flat :label="$t('toolbar.system_explorer')" dense>
+          <q-btn-dropdown no-caps flat :label="$t('toolbar.system_explorer')" dense>
             <q-list>
               <q-item clickable v-close-popup :to="'/routines'" dense>
                {{ $t("toolbar.routines") }}
@@ -62,7 +62,7 @@
               </q-item>
             </q-list>
           </q-btn-dropdown>
-          <q-btn-dropdown flat :label="$t('toolbar.utilities')" dense>
+          <q-btn-dropdown  no-caps flat :label="$t('toolbar.utilities')" dense>
             <q-list> </q-list>
           </q-btn-dropdown>
           <q-btn-dropdown flat :label="$t('toolbar.documentation')" dense>
@@ -127,8 +127,39 @@
         </div>
 
         <q-space />
+        <div class=" row items-center no-wrap">
 
-        <div class="q-pl-sm q-gutter-sm row items-center no-wrap">
+
+  <q-btn-dropdown
+      v-if="isNotSPA"
+      :class="$q.dark.isActive ? 'bg-purple' : 'bg-orange'"
+      style="font-size:18px;"
+      flat
+      no-caps
+      icon="computer"
+      :label="`${name}@${protocol}://${ip}:${port}`"
+    >
+      <q-list>
+        <div class="q-pa-md">Saved connections</div>
+        <q-item clickable v-close-popup @click="onConnectionClick(connections[connection])" v-for="(connection,index) in Object.keys(connections)" :key="'connection-'+index" dense>
+          <q-item-section avatar>
+            <q-avatar icon="computer" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>{{connections[connection].name}}</q-item-label>
+            <q-item-label caption>{{`${connections[connection].protocol}://${connections[connection].ip}:${connections[connection].port}`}}</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+              <q-btn
+            no-caps
+            flat
+            class="full-width"
+            :label="'Clear saved connections'"
+            :disable="checkingConnection"
+            @click="$q.localStorage.set('ydb-app-connections', {});$q.notify('Cleared');"
+          />
+    </q-btn-dropdown>
           <q-select
             v-show="false"
             v-model="lang"
@@ -151,7 +182,7 @@
             flat
             round
             size="md"
-            :icon="'settings'"
+            :icon="'settings_ethernet'"
             @click="settingsDialog = true"
           />
           <q-btn
@@ -220,12 +251,27 @@
             :hint="'Connection protocol'"
           />
         </q-card-section>
+      <q-card-section class="q-pt-none">
+            <q-input
+            v-model="name"
+            outlined
+            label="Connection name*"
+            :dense="true"
+            hint="YottaDB instance 7"
+            :rules="[
+              val =>
+                (val && val.length) ||
+                'Please type a valid conncection name!'
+            ]"
+          />
+        </q-card-section>
 
         <q-card-actions align="right" class="text-primary">
           <q-btn
+            no-caps
             flat
             :disable="checkingConnection"
-            :label="checkingConnection ? 'Checking connection...' : 'OK'"
+            :label="checkingConnection ? 'Checking connection...' : 'Connect'"
             @click="setSettings"
           />
         </q-card-actions>
@@ -242,6 +288,8 @@ export default {
   name: "MyLayout",
   data() {
     return {
+      connections:{},
+      name:'',
       checkingConnection: false,
       settingsDialog: false,
       ip: "",
@@ -263,6 +311,7 @@ export default {
     }
   },
   created() {
+    this.connections =  this.$q.localStorage.getItem("ydb-app-connections") || {}; 
     this.theme = this.$q.localStorage.getItem("ydb-app-theme") || "light";
     if (this.theme === "dark") {
       this.$q.dark.set(true);
@@ -272,15 +321,18 @@ export default {
     if (
       this.$q.localStorage.getItem("ydb-app-ip") &&
       this.$q.localStorage.getItem("ydb-app-port") &&
-      this.$q.localStorage.getItem("ydb-app-protocol")
+      this.$q.localStorage.getItem("ydb-app-protocol") && 
+      this.$q.localStorage.getItem("ydb-app-name")
     ) {
       this.ip = this.$q.localStorage.getItem("ydb-app-ip");
       this.port = this.$q.localStorage.getItem("ydb-app-port");
       this.protocol = this.$q.localStorage.getItem("ydb-app-protocol");
+      this.name = this.$q.localStorage.getItem("ydb-app-name");
       let details = {
         ip: this.ip,
         port: this.port,
-        protocol: this.protocol
+        protocol: this.protocol,
+        name: this.name
       };
       this.$store.dispatch("app/setAppDetails", details);
       this.settingsEntered = true;
@@ -291,16 +343,27 @@ export default {
     }
   },
   methods: {
+    async onConnectionClick(details){
+      if (details.port && details.ip && details.protocol && details.name) {
+        this.port = details.port
+        this.ip = details.ip
+        this.protocol = details.protocol
+        this.name = details.name
+        await this.setSettings()
+      }
+    },
     async setSettings() {
-      if (this.port && this.ip && this.protocol) {
+      if (this.port && this.ip && this.protocol && this.name) {
         let details = {
           ip: this.ip,
           port: this.port,
-          protocol: this.protocol
+          protocol: this.protocol,
+          name: this.name
         };
         this.$q.localStorage.set("ydb-app-ip", this.ip);
         this.$q.localStorage.set("ydb-app-port", this.port);
         this.$q.localStorage.set("ydb-app-protocol", this.protocol);
+        this.$q.localStorage.set("ydb-app-name", this.name);
         this.$store.dispatch("app/setAppDetails", details);
         this.checkingConnection = true;
         let data = await this.$M("PING^%YDBWEBAPI");
@@ -313,14 +376,22 @@ export default {
           let details = {
             ip: "",
             port: "",
-            protocol: ""
+            protocol: "",
+            name:""
           };
           this.$q.localStorage.set("ydb-app-ip", "");
           this.$q.localStorage.set("ydb-app-port", "");
           this.$q.localStorage.set("ydb-app-protocol", "");
+          this.$q.localStorage.set("ydb-app-name", "");
           this.$store.dispatch("app/setAppDetails", details);
+          location.reload(true);
           return;
         } else {
+          let connections = this.$q.localStorage.getItem("ydb-app-connections") || {};
+          let key = details.name+'-'+details.protocol+'-'+details.ip+'-'+details.port
+          connections[key]=details
+          this.connections = connections
+          this.$q.localStorage.set("ydb-app-connections", connections);
           this.checkingConnection = false;
           this.$q.notify({
             message: "Connection succeeded!",
