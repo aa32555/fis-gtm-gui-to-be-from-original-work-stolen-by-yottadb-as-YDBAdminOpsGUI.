@@ -1,4 +1,4 @@
-%YDBWEB ;YottaDB Web Server; 05-07-2021
+%YDBWEB; YottaDB Web Server; 05-07-2021
 	;#################################################################
 	;#                                                               #
 	;# Copyright (c) 2021 YottaDB LLC and/or its subsidiaries.       #
@@ -10,969 +10,926 @@
 	;#   the license, please stop and do not read further.           #
 	;#                                                               #
 	;#################################################################		
-	Q
+	quit
 	;
 	;
-ROUTES
-	S YDBWEB(":WS","ROUTES","POST","ydbwebapi","API^%YDBWEBAPI")=""
-	S YDBWEB(":WS","ROUTES","OPTIONS","ydbwebapi","API^%YDBWEBAPI")=""
-	S YDBWEB(":WS","ROUTES","GET","YottaDB","SERVESTATIC^%YDBWEBAPI")=""
+routes
+	set ydbweb(":ws","routes","POST","ydbwebapi","api^%YDBWEBAPI")=""
+	set ydbweb(":ws","routes","OPTIONS","ydbwebapi","api^%YDBWEBAPI")=""
+	set ydbweb(":ws","routes","GET","YottaDB","servestatic^%YDBWEBAPI")=""
 	;
-	Q	
+	quit	
 	;
-Start(PORT) ;
-	K (PORT)
-	I '$G(PORT) S PORT=8089
-	S NOGLB=1
-	I 1 J JOB(PORT) H 1 I '$T W !,"YottaDB Web Server could not be started!" Q
-	S JOB=$ZJOB
-	I '$$DirectoryExists^%YDBUTILS("/tmp") D
-	. W !,"Creating /tmp ..."
-	. W:$$CreateDirectoryTree^%YDBUTILS("/tmp") " succeeded" 
-	ZSY "echo ""PID:"_JOB_",Port:"_PORT_""" > /tmp/ydbweb.info"
-	W !,"YottaDB Web Server started successfully. Port: ",PORT," - PID: ",JOB,!
-	Q
+Start(port) ;
+	new i,args
+	for i=1:1:$zlength($zcmdline," ") do
+	. set args(i)=$zpiece($zcmdline," ",i)
+	if $zlength($get(args(1)))&($get(args(1))=+$get(args(1))) set port=args(1)
+	kill (port)
+	if '$get(port) set port=8089
+	set noglb=1
+	if 1 job job(port) hang 1 if '$test write !,"YottaDB web server could not be started!" quit
+	set job=$zjob
+	if '$$DirectoryExists^%YDBUTILS("/tmp") do
+	. write !,"creating /tmp ..."
+	. write:$$CreateDirectoryTree^%YDBUTILS("/tmp") " succeeded" 
+	zsy "echo ""pid:"_job_",port:"_port_""" > /tmp/ydbweb.info"
+	write !,"YottaDB web server started successfully. port: ",port," - pid: ",job,!
+	quit
 Stop;
-	K
-	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
-	O SRC:(readonly)
-	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
-	N PORT,PID
-	S PID=$P($P(LINE,","),":",2)
-	S PORT=$P($P(LINE,",",2),":",2)
-	I 'PID W !!,"YottaDB Web Server could not be stopped!" Q
-	ZSY "kill "_PID
-	W !,"Killed PID: "_PID_". YottaDB Web Server stopped successfully.",!
-	;ZSY "netstat -ano -p tcp | grep "_PORT
-	Q
+	kill
+	write ! new src,line
+	set src="/tmp/ydbweb.info"
+	open src:(readonly)
+	use src read line close src set line=$translate(line,$char(13))
+	new port,pid
+	set pid=$zpiece($zpiece(line,","),":",2)
+	set port=$zpiece($zpiece(line,",",2),":",2)
+	if 'pid write !!,"YottaDB web server could not be stopped!" quit
+	zsy "kill "_pid
+	write !,"killed pid: "_pid_". yottadb web server stopped successfully.",!
+	;zsy "netstat -ano -p tcp | grep "_port
+	quit
 	;
-Check
-	K
-	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
-	O SRC:(readonly)
-	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
-	N PORT
-	S PORT=$P($P(LINE,",",2),":",2)
-	ZSY "netstat -ano -p tcp | grep "_PORT
-	Q 
+check
+	kill
+	write ! new src,line
+	set src="/tmp/ydbweb.info"
+	open src:(readonly)
+	use src read line close src set line=$translate(line,$char(13))
+	new port
+	set port=$zpiece($zpiece(line,",",2),":",2)
+	zsy "netstat -ano -p tcp | grep "_port
+	quit 
 	;       
-RUN(HTTPREQ,HTTPRSP,HTTPARGS)
-	S HTTPRSP("mime")="text/html"
-	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
-	O SRC:(readonly)
-	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
-	N PORT,PID
-	S PID=$P($P(LINE,","),":",2)
-	S PORT=$P($P(LINE,",",2),":",2)
-	S @HTTPRSP@(1)="YottaDB web server running on PID: "_PID_" and "_"Port: "_PORT
-	Q       
+run(httpreq,httprsp,httpargs)
+	set httprsp("mime")="text/html"
+	write ! new src,line
+	set src="/tmp/ydbweb.info"
+	open src:(readonly)
+	use src read line close src set line=$translate(line,$char(13))
+	new port,pid
+	set pid=$zpiece($zpiece(line,","),":",2)
+	set port=$zpiece($zpiece(line,",",2),":",2)
+	set @httprsp@(1)="YottaDB web server running on pid:"_pid_" and "_"port:"_port
+	quit       
 	;
-VIDS(HTTPREQ,HTTPRSP,HTTPARGS)
-	S HTTPRSP("mime")="video/mp4"
-	S RANGE=$G(HTTPREQ("header","range"))
-	S (START,END,LENGTH,TMP,VIDSIZE)=0
-	S SEQ=$P(HTTPREQ("path"),"/",2) I 'SEQ S SEQ=1
-	S VIDSIZE=^VIDS(SEQ)
-	S START=$P($P(RANGE,"=",2),"-") I START="" D  Q
-	. S HTTPRSP("header","Connection")="close"
-	. S HTTPRSP("header","Content-Range")="bytes "_0_"-"_0_"/"_VIDSIZE
-	S FST=(START\4080),RMN=(START#4080),VIDEND=0
-	I 'RMN S @HTTPRSP@(1)="$NA("_$NA(^VIDS(SEQ,FST+1))_")"
-	I RMN S @HTTPRSP@(1)=$E(^VIDS(SEQ,FST+1),RMN+1,$L(^VIDS(SEQ,FST+1)))
-	S SIZE=$L(^VIDS(SEQ,FST+1))-RMN S D=0
-	S D=0 F I=2:1:2240 Q:D  D
-	. I '$D(^VIDS(SEQ,FST+I)) S D=1 Q
-	. S @HTTPRSP@(I)="$NA("_$NA(^VIDS(SEQ,FST+I))_")"
-	. S SIZE=SIZE+$L(^VIDS(SEQ,FST+I))
-	S HTTPRSP("header","Content-Range")="bytes "_START_"-"_(START+SIZE-1)_"/"_VIDSIZE
-	S HTTPRSP("partial")=""
-	Q
-JOB(TCPPORT)
-	S @("$ZINTERRUPT=""I $$JOBEXAM^%YDBWEBZU($ZPOSITION)""")
-	S TCPIO="SCK$"_TCPPORT
-	O TCPIO:(LISTEN=TCPPORT_":TCP":delim=$C(13,10):attach="server":chset="M"):15:"socket" 
-	E  U 0 W !,"error cannot open port "_TCPPORT Q
-	U TCPIO:(CHSET="M")
-	W /LISTEN(5)
-	N PARSOCK S PARSOCK=$P($KEY,"|",2)  ; Parent socket
-	N CHILDSOCK  ; That will be set below; Child socket
-LOOP
-	D  G LOOP
-	. F  W /WAIT Q:$KEY]""
-	. I $P($KEY,"|")="CONNECT" D 
-	. . S CHILDSOCK=$P($KEY,"|",2)
-	. . U TCPIO:(detach=CHILDSOCK)
-	. . N Q S Q=""""
-	. . N ARG S ARG=Q_"SOCKET:"_CHILDSOCK_Q
-	. . N J S J="CHILD($G(TLSCONFIG),$G(NOGBL)):(input="_ARG_":output="_ARG_")"
-	. . J @J
-	Q
-JOBEXAM(%ZPOS)
-	QUIT 1
-CHILD(TLSCONFIG,NOGBL)
-	N %WTCP S %WTCP=$GET(TCPIO,$PRINCIPAL)
-	S HTTPLOG=0
-	S HTTPLOG("DT")=+$H
-	D INCRLOG
-	N $ET S $ET="G ETSOCK^%YDBWEB"
+job(tcpport)
+	set @("$zinterrupt=""if $$JOBEXAM^%YDBWEBZU($zposition)""")
+	set tcpio="SCK$"_tcpport
+	open tcpio:(listen=tcpport_":TCP":delim=$char(13,10):attach="server":chset="M"):15:"socket" 
+	else  use 0 write !,"error cannot open port "_tcpport quit
+	use tcpio:(chset="m")
+	write /listen(5)
+	new parsock set parsock=$zpiece($key,"|",2) 
+	new childsock
+loop
+	do  goto loop
+	. for  write /wait quit:$key]""
+	. if $zpiece($key,"|")="CONNECT" do 
+	. . set childsock=$zpiece($key,"|",2)
+	. . use tcpio:(detach=childsock)
+	. . new q set q=""""
+	. . new arg set arg=q_"SOCKET:"_childsock_q
+	. . new j set j="child($g(tlsconfig),$g(nogbl)):(input="_arg_":output="_arg_")"
+	. . job @j
+	quit
+child(tlsconfig,nogbl)
+	new %wtcp set %wtcp=$get(tcpio,$principal)
+	set httplog=0
+	set httplog("dt")=+$horolog
+	do incrlog
+	;new $et set $et="g etsock^%YDBWEB"
 	;
-NEXT
-	K HTTPREQ,HTTPRSP,HTTPERR
-WAIT
-	U %WTCP:(delim=$C(13,10):chset="M")
-	R TCPX:10 I '$T G ETDC
-	I '$L(TCPX) G ETDC
-	S HTTPREQ("method")=$P(TCPX," ")
-	S HTTPREQ("path")=$P($P(TCPX," ",2),"?")
-	S HTTPREQ("query")=$P($P(TCPX," ",2),"?",2,999)
-	S HTTPREQ("body")="%YDBWEBBODY" K @HTTPREQ("body")
-	I $E($P(TCPX," ",3),1,4)'="HTTP" G NEXT
-	F  S TCPX=$$RDCRLF() Q:'$L(TCPX)  D ADDHEAD(TCPX)
-	I $G(HTTPREQ("header","expect"))="100-continue" D
-	. W "HTTP/1.1 100 Continue",$C(13,10,13,10),!
-	U %WTCP:(nodelim)
-	I $$LOW($G(HTTPREQ("header","transfer-encoding")))="chunked" D
-	. D RDCHNKS
-	. I HTTPLOG>2
-	I $G(HTTPREQ("header","content-length"))>0 D
-	. D RDLEN(HTTPREQ("header","content-length"),99)
-	S $ETRAP="G ETCODE^%YDBWEB"
-	S HTTPERR=0
-	D RESPOND
-	S $ETRAP="G ETSOCK^%YDBWEB"
-	U %WTCP:(nodelim:chset="M")
-	I $G(HTTPERR) D RSPERROR
-	D SENDATA C %WTCP  HALT
-	I $G(HTTPRSP("header","Connection"))="close" C %WTCP
-	G NEXT
-RDCRLF() ;:PRIVATE:
-	N X,LINE,RETRY
-	S LINE=""
-	F RETRY=1:1 R X:1 S LINE=LINE_X Q:$A($ZB)=13  Q:RETRY>10
-	Q LINE
-RDCHNKS ;:PRIVATE:
-	Q
-RDLEN(REMAIN,TIMEOUT) ;:PRIVATE:
-	N X,LINE,LENGTH
-	S LINE=0
-RDLOOP ;:PRIVATE:
-	S LENGTH=REMAIN I LENGTH>1600 S LENGTH=1600
-	R X#LENGTH:TIMEOUT
-	I '$T S LINE=LINE+1,@HTTPREQ("body")@(LINE)=X Q
-	S REMAIN=REMAIN-$L(X),LINE=LINE+1,@HTTPREQ("body")@(LINE)=X
-	G:REMAIN RDLOOP
-	Q
-ADDHEAD(LINE) ;:PRIVATE:
-	N NAME,VALUE
-	S NAME=$$LOW($$LTRIM($P(LINE,":")))
-	S VALUE=$$LTRIM($P(LINE,":",2,99))
-	I LINE'[":" S NAME="",VALUE=LINE
-	I '$L(NAME) S NAME=$G(HTTPREQ("header"))
-	I '$L(NAME) Q
-	I $D(HTTPREQ("header",NAME)) D
-	. S HTTPREQ("header",NAME)=HTTPREQ("header",NAME)_","_VALUE
-	E  D
-	. S HTTPREQ("header",NAME)=VALUE,HTTPREQ("header")=NAME
-	Q
-ETSOCK
-	D LOGERR
-	C %WTCP
-	H
-ETCODE
-	S $ETRAP="G ETBAIL^%YDBWEB"
-	I $TLEVEL TROLLBACK
-	D LOGERR,SETERROR(501,"Log ID:"_HTTPLOG("ID")),RSPERROR,SENDATA
-	S $ETRAP="Q:$ESTACK&$QUIT 0 Q:$ESTACK  S $ECODE="""" G NEXT"
-	Q
-ETDC
-	C $P
-	HALT
-ETBAIL
-	U %WTCP
-	W "HTTP/1.1 500 Internal Server Error-",$C(13,10),$C(13,10),!
-	;W "HTTP/1.1 500 Internal Server Error-",$C(13,10)
-	;W "X-Server-Error: "_$ZSTATUS_$C(13,10)_$C(13,10),!
-	C %WTCP
-	HALT
-INCRLOG
-	N DT,ID
-	S DT=+$H
-	S ID=$H_"."_$J S HTTPLOG("ID")=ID
-	Q
-LOGERR
-	Q
-UP(X) Q $TR(X,"abcdefghijklmnopqrstuvwxyz","ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-LOW(X) Q $TR(X,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")
-LTRIM(%X)
-	N %L,%R
-	S %L=1,%R=$L(%X)
-	F %L=1:1:$L(%X) Q:$A($E(%X,%L))>32
-	Q $E(%X,%L,%R)
-RESPOND
-	N ROUTINE,LOCATION,HTTPARGS,HTTPBODY,ADS
-	S ROUTINE=""
-	D MATCH(.ROUTINE,.HTTPARGS) I $G(HTTPERR) Q
-	D QSPLIT(.HTTPARGS) I $G(HTTPERR) QUIT
-	S HTTPRSP="%YDBWEBRESP" k @HTTPRSP
-	I ROUTINE="" S ROUTINE="RUN"
-	D @(ROUTINE_"(.HTTPREQ,.HTTPRSP,.HTTPARGS)")
-	Q
-QSPLIT(QUERY)
-	N I,X,NAME,VALUE
-	F I=1:1:$L(HTTPREQ("query"),"&") D
-	. S X=$$URLDEC($P(HTTPREQ("query"),"&",I))
-	. S NAME=$P(X,"="),VALUE=$P(X,"=",2,999)
-	. I $L(NAME) S QUERY($$LOW(NAME))=VALUE
-	Q
-MATCH(ROUTINE,ARGS)
-	N AUTHNODE
-	S ROUTINE=""
-	D MATCHF(.ROUTINE,.ARGS,.AUTHNODE) Q
-	I ROUTINE="" S ROUTINE="RUN"
-	Q
-MATCHF(ROUTINE,ARGS,AUTHNODE)
-	N PATH S PATH=HTTPREQ("path")
-	S:$E(PATH)="/" PATH=$E(PATH,2,$L(PATH))
-	N DONE S DONE=0
-	N PATH1 S PATH1=$$URLDEC($P(PATH,"/",1,9999),1)
-	N PATH1 S PATH1=$$URLDEC($P(PATH,"/",1),1)
-	N PATTERN S PATTERN=PATH1
-	I PATTERN="" S PATTERN="/"
-	I PATTERN=""  S PATTERN="YottaDB"
-	I PATTERN="/" S PATTERN="YottaDB"
-	I '$D(YDBWEB(":WS","ROUTES")) D ROUTES
-	I $D(YDBWEB(":WS","ROUTES",HTTPREQ("method"),PATTERN)) D
-	. S ROUTINE=$O(YDBWEB(":WS","ROUTES",HTTPREQ("method"),PATTERN,""))
-	Q
-SENDATA
-	N %WBUFF S %WBUFF=""
-	N SIZE,RSPTYPE,PREAMBLE,START,LIMIT
-	S RSPTYPE=$S($E($G(HTTPRSP))="%":2,$E($G(HTTPRSP))'="^":1,1:2)
-	I RSPTYPE=1 S SIZE=$$VARSIZE(.HTTPRSP)
-	I RSPTYPE=2 S SIZE=$$REFSIZE(.HTTPRSP)
-	D W($$RSPLINE()_$C(13,10))
-	;D W("Date: "_$$GMT_$C(13,10))
-	I $D(HTTPREQ("Content-Disposition")) D
-	. D W("Content-Disposition: "_HTTPREQ("Content-Disposition")_$C(13,10))
-	I $D(HTTPREQ("X-Accel-Redirect")) D
-	. D W("X-Accel-Redirect: "_HTTPREQ("X-Accel-Redirect")_$C(13,10))
-	I $D(HTTPREQ("set_cookie")) D
-	. D W("Set-Cookie: "_HTTPREQ("set_cookie")_$C(13,10))
-	I $D(HTTPREQ("location")) D
-	. D W("Location: "_HTTPREQ("location")_$C(13,10))
-	I $D(HTTPRSP("auth")) D
-	. D W("WWW-Authenticate: "_HTTPRSP("auth")_$C(13,10)) K HTTPRSP("auth")
-	I $D(HTTPRSP("header")) d
-	. n tmp s tmp="" f  s tmp=$o(HTTPRSP("header",tmp)) q:tmp=""  D
-	. . d W(tmp_": "_HTTPRSP("header",tmp)_$c(13,10))
-	. k HTTPRSP("header")
-	I $D(HTTPRSP("mime")) D
-	. D W("Content-Type: "_HTTPRSP("mime")_$C(13,10)) K HTTPRSP("mime")
-	E  D W("Content-Type: application/json; charset=utf-8"_$C(13,10))
-	D W("Content-Length: "_SIZE_$C(13,10)_$C(13,10))
-	I 'SIZE D FLUSH Q
-	N I,J,IND
-	I RSPTYPE=1 D
-	. I $D(HTTPRSP)#2 D W(HTTPRSP)
-	. I $D(HTTPRSP)>1 S I=0 F  S I=$O(HTTPRSP(I)) Q:'I  D W(HTTPRSP(I))
-	I RSPTYPE=2 D
-	. I $D(@HTTPRSP)#2 D W(@HTTPRSP)
-	. I $D(@HTTPRSP)>1 S I=0 F  S I=$O(@HTTPRSP@(I)) Q:'I  D
-	. . S IND=@HTTPRSP@(I)
-	. . I $ZE(IND,1,4)="$NA(" D  Q
-	. . . S TMP=$P($P(IND,"$NA(",2),")",1,$ZL(IND,")")-1) I '$D(@TMP) Q
-	. . . D W(@TMP)
-	. . D W(IND) Q
-	D FLUSH
-	Q
-W(DATA)
-	I ($ZL(%WBUFF)+$ZL(DATA))>4080 D FLUSH
-	S %WBUFF=%WBUFF_DATA
-	Q
-FLUSH
-	W %WBUFF
-	S %WBUFF=""
-	Q
-RSPERROR
-	S HTTPRSP("header","X-Server-Error")=$ZSTATUS
-	Q
-RSPLINE()
-	I $D(HTTPRSP("partial")) Q "HTTP/1.1 206 Partial Content"
-	I '$G(HTTPERR),'$D(HTTPREQ("location")) Q "HTTP/1.1 200 OK"
-	I '$G(HTTPERR),$D(HTTPREQ("location")) Q "HTTP/1.1 201 Created"
-	I $G(HTTPERR)=400 Q "HTTP/1.1 400 Bad Request"
-	I $G(HTTPERR)=401 Q "HTTP/1.1 401 Unauthorized"
-	I $G(HTTPERR)=404 Q "HTTP/1.1 404 Not Found"
-	I $G(HTTPERR)=405 Q "HTTP/1.1 405 Method Not Allowed"
-	I $G(HTTPERR)=302 Q "HTTP/1.1 302 Moved Temporarily"
-	Q "HTTP/1.1 500 Internal Server Error"
-SETERROR(ERRCODE,MESSAGE)
-	N NEXTERR,ERRNAME,TOPMSG
-	S HTTPERR=400,TOPMSG="Bad Request"
-	I ERRCODE=101 S ERRNAME="Missing name of index"
-	I ERRCODE=102 S ERRNAME="Invalid index name"
-	I ERRCODE=103 S ERRNAME="Parameter error"
-	I ERRCODE=104 S HTTPERR=404,TOPMSG="Not Found",ERRNAME="Bad key"
-	I ERRCODE=105 S ERRNAME="Template required"
-	I ERRCODE=106 S ERRNAME="Bad Filter Parameter"
-	I ERRCODE=107 S ERRNAME="Unsupported Field Name"
-	I ERRCODE=108 S ERRNAME="Bad Order Parameter"
-	I ERRCODE=109 S ERRNAME="Operation not supported with this index"
-	I ERRCODE=110 S ERRNAME="Order field unknown"
-	I ERRCODE=111 S ERRNAME="Unrecognized parameter"
-	I ERRCODE=112 S ERRNAME="Filter required"
-	I ERRCODE=201 S ERRNAME="Unknown collection"
-	I ERRCODE=202 S ERRNAME="Unable to decode JSON"
-	I ERRCODE=203 D
-	. S HTTPERR=404,TOPMSG="Not Found",ERRNAME="Unable to determine patient"
-	I ERRCODE=204 D
-	. S HTTPERR=404,TOPMSG="Not Found",ERRNAME="Unable to determine collection"
-	I ERRCODE=205 S ERRNAME="Patient mismatch with object"
-	I ERRCODE=207 S ERRNAME="Missing UID"
-	I ERRCODE=209 S ERRNAME="Missing range or index"
-	I ERRCODE=210 S ERRNAME="Unknown UID format"
-	I ERRCODE=211 D
-	. S HTTPERR=404,TOPMSG="Not Found",ERRNAME="Missing patient identifiers"
-	I ERRCODE=212 S ERRNAME="Mismatch of patient identifiers"
-	I ERRCODE=213 S ERRNAME="Delete demographics only not allowed"
-	I ERRCODE=214 S HTTPERR=404,ERRNAME="Patient ID not found in database"
-	I ERRCODE=215 S ERRNAME="Missing collection name"
-	I ERRCODE=216 S ERRNAME="Incomplete deletion of collection"
-	I ERRCODE=400 S ERRNAME="Bad Request"
-	I ERRCODE=401 S ERRNAME="Unauthorized"
-	I ERRCODE=404 S ERRNAME="Not Found"
-	I ERRCODE=405 S ERRNAME="Method Not Allowed"
-	I ERRCODE=501 S ERRNAME="M execution error"
-	I ERRCODE=502 S ERRNAME="Unable to lock record"
-	I '$L($G(ERRNAME)) S ERRNAME="Unknown error"
-	I ERRCODE>500 S HTTPERR=500,TOPMSG="Internal Server Error"
-	I ERRCODE<500,ERRCODE>400 S HTTPERR=ERRCODE,TOPMSG=ERRNAME
-	Q
-URLENC(X)
-	N I,Y,Z,LAST
-	S Y=$P(X,"%") F I=2:1:$L(X,"%") S Y=Y_"%25"_$P(X,"%",I)
-	S X=Y,Y=$P(X,"&") F I=2:1:$L(X,"&") S Y=Y_"%26"_$P(X,"&",I)
-	S X=Y,Y=$P(X,"=") F I=2:1:$L(X,"=") S Y=Y_"%3D"_$P(X,"=",I)
-	S X=Y,Y=$P(X,"+") F I=2:1:$L(X,"+") S Y=Y_"%2B"_$P(X,"+",I)
-	S X=Y,Y=$P(X,"{") F I=2:1:$L(X,"{") S Y=Y_"%7B"_$P(X,"{",I)
-	S X=Y,Y=$P(X,"}") F I=2:1:$L(X,"}") S Y=Y_"%7D"_$P(X,"}",I)
-	S Y=$TR(Y," ","+")
-	S Z="",LAST=1
-	F I=1:1:$L(Y) I $A(Y,I)<32 D
-	. S CODE=$$DEC2HEX($A(Y,I)),CODE=$TR($J(CODE,2)," ","0")
-	. S Z=Z_$E(Y,LAST,I-1)_"%"_CODE,LAST=I+1
-	S Z=Z_$E(Y,LAST,$L(Y))
-	Q Z
-URLDEC(X,PATH) ; Decode a URL-encoded string
-	N I,OUT,FRAG,ASC
-	S:'$G(PATH) X=$TR(X,"+"," ") ; don't convert '+' in path fragment
-	F I=1:1:$L(X,"%") D
-	. I I=1 S OUT=$P(X,"%") Q
-	. S FRAG=$P(X,"%",I),ASC=$E(FRAG,1,2),FRAG=$E(FRAG,3,$L(FRAG))
-	. I $L(ASC) S OUT=OUT_$C($$HEX2DEC(ASC))
-	. S OUT=OUT_FRAG
-	Q OUT
-REFSIZE(ROOT)
-	Q:'$D(ROOT) 0 Q:'$L(ROOT) 0
-	N SIZE,I
-	S SIZE=0
-	I $D(@ROOT)#2 S SIZE=$ZL(@ROOT)
-	I $D(@ROOT)>1 S I=0 F  S I=$O(@ROOT@(I)) Q:'I  D
-	. I $ZE(@ROOT@(I),1,4)="$NA(" D  Q
-	. . S TMP=$P($P(@ROOT@(I),"$NA(",2),")",1,$ZL(@ROOT@(I),")")-1)
-	. . S SIZE=SIZE+$ZL(@TMP) Q
-	. S SIZE=SIZE+$ZL(@ROOT@(I))
-	Q SIZE
-VARSIZE(V)
-	Q:'$D(V) 0
-	N SIZE,I
-	S SIZE=0
-	I $D(V)#2 S SIZE=$L(V)
-	I $D(V)>1 S I="" F  S I=$O(V(I)) Q:'I  S SIZE=SIZE+$L(V(I))
-	Q SIZE
-GMT()
-	N OUT
-	I $$UP($ZV)["GT.M" D  Q OUT
-	. N D S D="datetimepipe"
-	. N OLDIO S OLDIO=$I
-	. O D:(shell="/bin/sh":command="date -u +'%a, %d %b %Y %H:%M:%S %Z'|sed 's/UTC/GMT/g'")::"pipe"
-	. U D R OUT:1
-	. U OLDIO C D
-	QUIT "UNIMPLEMENTED"
-ENCODE(VVROOT,VVJSON,VVERR) ; VVROOT (M structure) --> VVJSON (array of strings)
-	I '$L($G(VVROOT)) Q
-	I '$L($G(VVJSON)) Q
-	N VVLINE,VVMAX,VVERRORS
-	S VVLINE=1,VVMAX=4080,VVERRORS=0
-	S @VVJSON@(VVLINE)=""
-	D SEROBJ(VVROOT)
-	Q
-SEROBJ(VVROOT)
-	N VVFIRST,VVSUB,VVNXT
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"{"
-	S VVFIRST=1
-	S VVSUB="" F  S VVSUB=$O(@VVROOT@(VVSUB)) Q:VVSUB=""  D
-	. S:'VVFIRST @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"," S VVFIRST=0
-	. D SERNAME(VVSUB)
-	. I $$ISVALUE(VVROOT,VVSUB) D SERVAL(VVROOT,VVSUB) Q
-	. I $D(@VVROOT@(VVSUB))=10 S VVNXT=$O(@VVROOT@(VVSUB,"")) D  Q
-	. . I +VVNXT D SERARY($NA(@VVROOT@(VVSUB))) I 1
-	. . E  D SEROBJ($NA(@VVROOT@(VVSUB)))
-	. D ERRX("SOB",VVSUB)
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"}"
-	Q
-SERARY(VVROOT)
-	N VVFIRST,VVI,VVNXT
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"["
-	S VVFIRST=1
-	S VVI=0 F  S VVI=$O(@VVROOT@(VVI)) Q:'VVI  D
-	. S:'VVFIRST @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"," S VVFIRST=0
-	. I $$ISVALUE(VVROOT,VVI) D SERVAL(VVROOT,VVI) Q 
-	. I $D(@VVROOT@(VVI))=10 S VVNXT=$O(@VVROOT@(VVI,"")) D  Q
-	. . I +VVNXT D SERARY($NA(@VVROOT@(VVI))) I 1
-	. . E  D SEROBJ($NA(@VVROOT@(VVI)))
-	. D ERRX("SAR",VVI)
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_"]"
-	Q
-SERNAME(VVSUB)
-	I ($L(VVSUB)+$L(@VVJSON@(VVLINE)))>VVMAX S VVLINE=VVLINE+1,@VVJSON@(VVLINE)=""
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_""""_VVSUB_""""_":"
-	Q
-SERVAL(VVROOT,VVSUB)
-	N VVX,VVI
-	I $D(@VVROOT@(VVSUB,":")) D  Q
-	. S VVX=$G(@VVROOT@(VVSUB,":")) D:$L(VVX) CONCAT
-	. S VVI=0 F  S VVI=$O(@VVROOT@(VVSUB,":",VVI)) Q:'VVI  S VVX=@VVROOT@(VVSUB,":",VVI) D CONCAT
-	S VVX=$G(@VVROOT@(VVSUB))
-	I '$D(@VVROOT@(VVSUB,"\s")),$$NUMERIC(VVX) D CONCAT QUIT
-	I (VVX="true")!(VVX="false")!(VVX="null") D CONCAT QUIT
-	S VVX=""""_$$ESC(VVX)
-	D CONCAT
-	I $D(@VVROOT@(VVSUB,"\")) D
-	. S VVI=0 F  S VVI=$O(@VVROOT@(VVSUB,"\",VVI)) Q:'VVI   D
-	. . S VVX=$$ESC(@VVROOT@(VVSUB,"\",VVI))
-	. . D CONCAT
-	S VVX="""" D CONCAT
-	Q
-CONCAT
-	I ($L(VVX)+$L(@VVJSON@(VVLINE)))>VVMAX S VVLINE=VVLINE+1,@VVJSON@(VVLINE)=""
-	S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_VVX
-	Q
-ISVALUE(VVROOT,VVSUB)
-	I $D(@VVROOT@(VVSUB))#2 Q 1
-	N VVX S VVX=$O(@VVROOT@(VVSUB,""))
-	Q:VVX="\" 1
-	Q:VVX=":" 1
-	Q 0
-NUMERIC(X) 
-	I $L(X,".")>2 Q 0
-	I $E(X,1,2)="-." Q 0
-	I X=+X,$L(X)'=$L(+X) Q 0
-	I $E(X)="." Q 0
-	I X=+X Q 1
-	Q 0
-ESC(X)
-	N Y,%DH
-	S Y=X
-	I X["\"  S Y=$$REPLACE(Y,"\","\\")
-	I X["""" S Y=$$REPLACE(Y,"""","\""")
-	I X["/"  S Y=$$REPLACE(Y,"/","\/")
-	I X[$C(8) S Y=$$REPLACE(Y,$C(8),"\"_$C(98))
-	I X[$C(12) S Y=$$REPLACE(Y,$C(12),"\"_$C(102))
-	I X[$C(10) S Y=$$REPLACE(Y,$C(10),"\"_$C(110))
-	I X[$C(13) S Y=$$REPLACE(Y,$C(13),"\"_$C(114))
-	I X[$C(9) S Y=$$REPLACE(Y,$C(9),"\"_$C(116))
-	N I F I=1:1:$L(X) D
-	. I $A($E(X,I))=8   Q 
-	. I $A($E(X,I))=12  Q 
-	. I $A($E(X,I))=10  Q 
-	. I $A($E(X,I))=13  Q 
-	. I $A($E(X,I))=9   Q 
-	. I $A($E(X,I))>=33 Q
-	. S %DH=$A($E(X,I))
-	. D ^%DH
-	. S Y=$$REPLACE(Y,$E(X,I),"\u"_$E(%DH,$L(%DH)-3,$L(%DH)))
-	Q Y 
+next
+	kill httpreq,httprsp,httperr
+wait
+	use %wtcp:(delim=$char(13,10):chset="m")
+	read tcpx:10 if '$test goto etdc
+	if '$zlength(tcpx) goto etdc
+	set httpreq("method")=$zpiece(tcpx," ")
+	set httpreq("path")=$zpiece($zpiece(tcpx," ",2),"?")
+	set httpreq("query")=$zpiece($zpiece(tcpx," ",2),"?",2,999)
+	set httpreq("body")="%ydbwebbody" kill @httpreq("body")
+	if $zextract($zpiece(tcpx," ",3),1,4)'="HTTP" goto next
+	for  set tcpx=$$rdcrlf() quit:'$zlength(tcpx)  do addhead(tcpx)
+	use %wtcp:(nodelim)
+	if $get(httpreq("header","content-length"))>0 do
+	. do rdlen(httpreq("header","content-length"),99)
+	set $et="g etcode^%YDBWEB"
+	set httperr=0
+	do respond
+	set $et="g etsock^%YDBWEB"
+	use %wtcp:(nodelim:chset="m")
+	if $get(httperr) do rsperror
+	do sendata close %wtcp  halt
+	if $zconvert($get(httprsp("header","connection")),"l")="close" close %wtcp
+	goto next
+rdcrlf()
+	new x,line,retry
+	set line=""
+	for retry=1:1 read x:1 set line=line_x quit:$ascii($zb)=13  quit:retry>10
+	quit line
+rdchnks 
+	quit
+rdlen(remain,timeout)
+	new x,line,length
+	set line=0
+rdloop
+	set length=remain if length>1600 set length=1600
+	read x#length:timeout
+	if '$test set line=line+1,@httpreq("body")@(line)=x quit
+	set remain=remain-$zlength(x),line=line+1,@httpreq("body")@(line)=x
+	goto:remain rdloop
+	quit
+addhead(line)
+	new name,value
+	set name=$$low($$ltrim($zpiece(line,":")))
+	set value=$$ltrim($zpiece(line,":",2,99))
+	if line'[":" set name="",value=line
+	if '$zlength(name) set name=$get(httpreq("header"))
+	if '$zlength(name) quit
+	if $data(httpreq("header",name)) do
+	. set httpreq("header",name)=httpreq("header",name)_","_value
+	else  do
+	. set httpreq("header",name)=value,httpreq("header")=name
+	quit
+etsock
+	do logerr
+	close %wtcp
+	halt
+etcode
+	set $et="g etbail^%YDBWEB"
+	if $tlevel trollback
+	do logerr,seterror(501,"log id:"_httplog("id")),rsperror,sendata
+	set $et="q:$estack&$quit 0 q:$estack  s $ecode="""" g next"
+	quit
+etdc
+	close $principal
+	halt
+etbail
+	use %wtcp
+	write "HTTP/1.1 500 internal server error-",$char(13,10),$char(13,10),!
+	close %wtcp
+	halt
+incrlog
+	new dt,id
+	set dt=+$horolog
+	set id=$horolog_"."_$job set httplog("id")=id
+	quit
+logerr
+	quit
+up(string) quit $zconvert(string,"u")
+low(string) quit $zconvert(string,"l")
+ltrim(%x)
+	new %l,%r
+	set %l=1,%r=$zlength(%x)
+	for %l=1:1:$zlength(%x) quit:$ascii($zextract(%x,%l))>32
+	quit $zextract(%x,%l,%r)
+respond
+	new routine,location,httpargs,httpbody,ads
+	set routine=""
+	do match(.routine,.httpargs) if $get(httperr) quit
+	do qsplit(.httpargs) if $get(httperr) quit
+	set httprsp="%ydbwebresp" kill @httprsp
+	if routine="" set routine="run"
+	do @(routine_"(.httpreq,.httprsp,.httpargs)")
+	quit
+qsplit(query)
+	new i,x,name,value
+	for i=1:1:$zlength(httpreq("query"),"&") do
+	. set x=$$urldec($zpiece(httpreq("query"),"&",i))
+	. set name=$zpiece(x,"="),value=$zpiece(x,"=",2,999)
+	. if $zlength(name) set query($$low(name))=value
+	quit
+match(routine,args)
+	new authnode
+	set routine=""
+	do matchf(.routine,.args,.authnode) quit
+	if routine="" set routine="run"
+	quit
+matchf(routine,args,authnode)
+	new path set path=httpreq("path")
+	set:$zextract(path)="/" path=$zextract(path,2,$zlength(path))
+	new done set done=0
+	new path1 set path1=$$urldec($zpiece(path,"/",1,9999),1)
+	new path1 set path1=$$urldec($zpiece(path,"/",1),1)
+	new pattern set pattern=path1
+	if pattern="" set pattern="/"
+	if pattern=""  set pattern="YottaDB"
+	if pattern="/" set pattern="YottaDB"
+	if '$data(ydbweb(":ws","routes")) do routes
+	if $data(ydbweb(":ws","routes",httpreq("method"),pattern)) do
+	. set routine=$order(ydbweb(":ws","routes",httpreq("method"),pattern,""))
+	quit
+	;	
+sendata
+	new %wbuff set %wbuff=""
+	new size,rsptype,preamble,start,limit
+	set rsptype=$select($zextract($get(httprsp))="%":2,$zextract($get(httprsp))'="^":1,1:2)
+	if rsptype=1 set size=$$varsize(.httprsp)
+	if rsptype=2 set size=$$refsize(.httprsp)
+	do w($$rspline()_$char(13,10))
+	if $data(httprsp("header")) do
+	. new tmp set tmp="" for  set tmp=$order(httprsp("header",tmp)) quit:tmp=""  do
+	. . do w(tmp_": "_httprsp("header",tmp)_$char(13,10))
+	. kill httprsp("header")
+	if $data(httprsp("mime")) do
+	. do w("Content-Type: "_httprsp("mime")_$char(13,10)) kill httprsp("mime")
+	else  do w("Content-Type: application/json; charset=utf-8"_$char(13,10))
+	do w("Content-Length: "_size_$char(13,10)_$char(13,10))
+	if 'size do flush quit
+	new i,j,ind
+	if rsptype=1 do
+	. if $data(httprsp)#2 do w(httprsp)
+	. if $data(httprsp)>1 set i=0 for  set i=$order(httprsp(i)) quit:'i  do w(httprsp(i))
+	if rsptype=2 do
+	. if $data(@httprsp)#2 do w(@httprsp)
+	. if $data(@httprsp)>1 set i=0 for  set i=$order(@httprsp@(i)) quit:'i  do
+	. . set ind=@httprsp@(i)
+	. . if $ze(ind,1,4)="$na(" do  quit
+	. . . set tmp=$zpiece($zpiece(ind,"$na(",2),")",1,$zl(ind,")")-1) if '$data(@tmp) quit
+	. . . do w(@tmp)
+	. . do w(ind) quit
+	do flush
+	quit
+w(data)
+	if ($zlength(%wbuff)+$zlength(data))>4080 do flush
+	set %wbuff=%wbuff_data
+	quit
+flush
+	write %wbuff
+	set %wbuff=""
+	quit
+rsperror
 	;
-ERRX(ID,VAL)
-	N ERRMSG
-	I ID="STL{" S ERRMSG="Stack too large for new object." G XERRX
-	I ID="SUF}" S ERRMSG="Stack Underflow - extra } found" G XERRX
-	I ID="STL[" S ERRMSG="Stack too large for new array." G XERRX
-	I ID="SUF]" S ERRMSG="Stack Underflow - extra ] found." G XERRX
-	I ID="OBM" S ERRMSG="Array missmatch - expected ] got }." G XERRX
-	I ID="ARM" S ERRMSG="Object mismatch - expected } got ]." G XERRX
-	I ID="MPN" S ERRMSG="Missing property name." G XERRX
-	I ID="EXT" S ERRMSG="Expected true, got "_VAL G XERRX
-	I ID="EXF" S ERRMSG="Expected false, got "_VAL G XERRX
-	I ID="EXN" S ERRMSG="Expected null, got "_VAL G XERRX
-	I ID="TKN" S ERRMSG="Unable to identify type of token, value was "_VAL G XERRX
-	I ID="SCT" S ERRMSG="Stack mismatch - exit stack level was  "_VAL G XERRX
-	I ID="EIQ" S ERRMSG="Close quote not found before end of input." G XERRX
-	I ID="EIU" S ERRMSG="Unexpected end of input while unescaping." G XERRX
-	I ID="RSB" S ERRMSG="Reverse search for \ past beginning of input." G XERRX
-	I ID="ORN" S ERRMSG="Overrun while scanning name." G XERRX
-	I ID="OR#" S ERRMSG="Overrun while scanning number." G XERRX
-	I ID="ORB" S ERRMSG="Overrun while scanning boolean." G XERRX
-	I ID="ESC" S ERRMSG="Escaped character not recognized"_VAL G XERRX
-	I ID="SOB" S ERRMSG="Unable to serialize node as object, value was "_VAL G XERRX
-	I ID="SAR" S ERRMSG="Unable to serialize node as array, value was "_VAL G XERRX
-	S ERRMSG="Unspecified error "_ID_" "_$G(VAL)
-XERRX
-	S @VVERR@(0)=$G(@VVERR@(0))+1
-	S @VVERR@(@VVERR@(0))=ERRMSG
-	S VVERRORS=VVERRORS+1
-	Q
+	quit
+rspline()
+	if $data(httprsp("partial")) quit "HTTP/1.1 206 partial content"
+	if '$get(httperr),'$data(httpreq("location")) quit "HTTP/1.1 200 ok"
+	if '$get(httperr),$data(httpreq("location")) quit "HTTP/1.1 201 created"
+	if $get(httperr)=400 quit "HTTP/1.1 400 bad request"
+	if $get(httperr)=401 quit "hHTTPttp/1.1 401 unauthorized"
+	if $get(httperr)=404 quit "HTTP/1.1 404 not found"
+	if $get(httperr)=405 quit "HTTP/1.1 405 method not allowed"
+	if $get(httperr)=302 quit "HTTP/1.1 302 moved temporarily"
+	quit "HTTP/1.1 500 internal server error"
+seterror(errcode,message)
+	new nexterr,errname,topmsg
+	set httperr=400,topmsg="bad request"
+	if errcode=101 set errname="missing name of index"
+	if errcode=102 set errname="invalid index name"
+	if errcode=103 set errname="parameter error"
+	if errcode=104 set httperr=404,topmsg="not found",errname="bad key"
+	if errcode=105 set errname="template required"
+	if errcode=106 set errname="bad filter parameter"
+	if errcode=107 set errname="unsupported field name"
+	if errcode=108 set errname="bad order parameter"
+	if errcode=109 set errname="operation not supported with this index"
+	if errcode=110 set errname="order field unknown"
+	if errcode=111 set errname="unrecognized parameter"
+	if errcode=112 set errname="filter required"
+	if errcode=201 set errname="unknown collection"
+	if errcode=202 set errname="unable to decode json"
+	if errcode=203 do
+	. set httperr=404,topmsg="not found",errname="unable to determine patient"
+	if errcode=204 do
+	. set httperr=404,topmsg="not found",errname="unable to determine collection"
+	if errcode=205 set errname="patient mismatch with object"
+	if errcode=207 set errname="missing uid"
+	if errcode=209 set errname="missing range or index"
+	if errcode=210 set errname="unknown uid format"
+	if errcode=211 do
+	. set httperr=404,topmsg="not found",errname="missing patient identifiers"
+	if errcode=212 set errname="mismatch of patient identifiers"
+	if errcode=213 set errname="delete demographics only not allowed"
+	if errcode=214 set httperr=404,errname="patient id not found in database"
+	if errcode=215 set errname="missing collection name"
+	if errcode=216 set errname="incomplete deletion of collection"
+	if errcode=400 set errname="bad request"
+	if errcode=401 set errname="unauthorized"
+	if errcode=404 set errname="not found"
+	if errcode=405 set errname="method not allowed"
+	if errcode=501 set errname="m execution error"
+	if errcode=502 set errname="unable to lock record"
+	if '$zlength($get(errname)) set errname="unknown error"
+	if errcode>500 set httperr=500,topmsg="internal server error"
+	if errcode<500,errcode>400 set httperr=errcode,topmsg=errname
+	quit
+urlenc(x)
+	new i,y,z,last
+	set y=$zpiece(x,"%") for i=2:1:$zlength(x,"%") set y=y_"%25"_$zpiece(x,"%",i)
+	set x=y,y=$zpiece(x,"&") for i=2:1:$zlength(x,"&") set y=y_"%26"_$zpiece(x,"&",i)
+	set x=y,y=$zpiece(x,"=") for i=2:1:$zlength(x,"=") set y=y_"%3d"_$zpiece(x,"=",i)
+	set x=y,y=$zpiece(x,"+") for i=2:1:$zlength(x,"+") set y=y_"%2b"_$zpiece(x,"+",i)
+	set x=y,y=$zpiece(x,"{") for i=2:1:$zlength(x,"{") set y=y_"%7b"_$zpiece(x,"{",i)
+	set x=y,y=$zpiece(x,"}") for i=2:1:$zlength(x,"}") set y=y_"%7d"_$zpiece(x,"}",i)
+	set y=$translate(y," ","+")
+	set z="",last=1
+	for i=1:1:$zlength(y) if $ascii(y,i)<32 do
+	. set code=$$dec2hex($ascii(y,i)),code=$translate($justify(code,2)," ","0")
+	. set z=z_$zextract(y,last,i-1)_"%"_code,last=i+1
+	set z=z_$zextract(y,last,$zlength(y))
+	quit z
+urldec(x,path) ; decode a url-encoded string
+	new i,out,frag,asc
+	set:'$get(path) x=$translate(x,"+"," ") ; don't convert '+' in path fragment
+	for i=1:1:$zlength(x,"%") do
+	. if i=1 set out=$zpiece(x,"%") quit
+	. set frag=$zpiece(x,"%",i),asc=$zextract(frag,1,2),frag=$zextract(frag,3,$zlength(frag))
+	. if $zlength(asc) set out=out_$char($$hex2dec(asc))
+	. set out=out_frag
+	quit out
+refsize(root)
+	quit:'$data(root) 0 quit:'$zlength(root) 0
+	new size,i
+	set size=0
+	if $data(@root)#2 set size=$zl(@root)
+	if $data(@root)>1 set i=0 for  set i=$order(@root@(i)) quit:'i  do
+	. if $ze(@root@(i),1,4)="$na(" do  quit
+	. . set tmp=$zpiece($zpiece(@root@(i),"$na(",2),")",1,$zl(@root@(i),")")-1)
+	. . set size=size+$zl(@tmp) quit
+	. set size=size+$zl(@root@(i))
+	quit size
+varsize(v)
+	quit:'$data(v) 0
+	new size,i
+	set size=0
+	if $data(v)#2 set size=$zlength(v)
+	if $data(v)>1 set i="" for  set i=$order(v(i)) quit:'i  set size=size+$zlength(v(i))
+	quit size
 	;
-DECODE(VVJSON,VVROOT,VVERR)
-DIRECT
-	N VVMAX S VVMAX=4080
-	I $D(@VVJSON)=1 N VVINPUT S VVINPUT(1)=@VVJSON,VVJSON="VVINPUT"
-	S VVROOT=$NA(@VVROOT@("Z")),VVROOT=$E(VVROOT,1,$L(VVROOT)-4) ; make open array ref
-	N VVLINE,VVIDX,VVSTACK,VVPROP,VVTYPE,VVERRORS
-	S VVLINE=$O(@VVJSON@("")),VVIDX=1,VVSTACK=0,VVPROP=0,VVERRORS=0
-	F  S VVTYPE=$$NXTKN() Q:VVTYPE=""  D  I VVERRORS Q
-	. I VVTYPE="{" S VVSTACK=VVSTACK+1,VVSTACK(VVSTACK)="",VVPROP=1 D:VVSTACK>64 ERRX("STL{") Q
-	. I VVTYPE="}" D:$$NUMERIC(VVSTACK(VVSTACK)) ERRX("OBM") S VVSTACK=VVSTACK-1 D:VVSTACK<0 ERRX("SUF}") Q
-	. I VVTYPE="[" S VVSTACK=VVSTACK+1,VVSTACK(VVSTACK)=1 D:VVSTACK>64 ERRX("STL[") Q
-	. I VVTYPE="]" D:'$$NUMERIC(VVSTACK(VVSTACK)) ERRX("ARM") S VVSTACK=VVSTACK-1 D:VVSTACK<0 ERRX("SUF]") Q
-	. I VVTYPE="," D  Q
-	. . I VVSTACK(VVSTACK) S VVSTACK(VVSTACK)=VVSTACK(VVSTACK)+1  ; next in array
-	. . E  S VVPROP=1                                   ; or next property name
-	. I VVTYPE=":" S VVPROP=0 D:'$L($G(VVSTACK(VVSTACK))) ERRX("MPN") Q
-	. I VVTYPE="""" D  Q
-	. . I VVPROP S VVSTACK(VVSTACK)=$$NAMPARS() I 1
-	. . E  D ADDSTR
-	. S VVTYPE=$TR(VVTYPE,"TFN","tfn")
-	. I VVTYPE="t"  D  Q
-	. . I $L(@VVJSON@(VVLINE))<=VVIDX+2,$D(@VVJSON@(VVLINE+1)) D
-	. . . S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_$E(@VVJSON@(VVLINE+1),1,2),@VVJSON@(VVLINE+1)=$E(@VVJSON@(VVLINE+1),3,$L(@VVJSON@(VVLINE+1)))
-	. . I $TR($E(@VVJSON@(VVLINE),VVIDX,VVIDX+2),"RUE","rue")="rue" D SETBOOL("true") I 1
-	. . E  B  D ERRX("EXT",VVTYPE)
-	. I VVTYPE="f" D  Q
-	. . I $L(@VVJSON@(VVLINE))<=VVIDX+3,$D(@VVJSON@(VVLINE+1)) D
-	. . . S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_$E(@VVJSON@(VVLINE+1),1,3),@VVJSON@(VVLINE+1)=$E(@VVJSON@(VVLINE+1),4,$L(@VVJSON@(VVLINE+1)))
-	. . I $TR($E(@VVJSON@(VVLINE),VVIDX,VVIDX+3),"ALSE","alse")="alse" D SETBOOL("false") I 1
-	. . E  D ERRX("EXF",VVTYPE)
-	. I VVTYPE="n" D  Q
-	. . I $L(@VVJSON@(VVLINE))<=VVIDX+2,$D(@VVJSON@(VVLINE+1)) D
-	. . . S @VVJSON@(VVLINE)=@VVJSON@(VVLINE)_$E(@VVJSON@(VVLINE+1),1,2),@VVJSON@(VVLINE+1)=$E(@VVJSON@(VVLINE+1),3,$L(@VVJSON@(VVLINE+1)))
-	. . I $TR($E(@VVJSON@(VVLINE),VVIDX,VVIDX+2),"ULL","ull")="ull" D SETBOOL("null") I 1
-	. . E  D ERRX("EXN",VVTYPE)
-	. I "0123456789+-.eE"[VVTYPE S @$$CURNODE()=$$NUMPARS(VVTYPE) Q
-	. D ERRX("TKN",VVTYPE_"["_$E(@VVJSON@(VVLINE),VVIDX,VVIDX+2)_"] ")
-	I VVSTACK'=0 D ERRX("SCT",VVSTACK)
-	Q
-NXTKN()
-	N VVDONE,VVEOF,VVTOKEN
-	S VVDONE=0,VVEOF=0 F  D  Q:VVDONE!VVEOF
-	. I VVIDX>$L(@VVJSON@(VVLINE)) S VVLINE=$O(@VVJSON@(VVLINE)),VVIDX=1 I 'VVLINE S VVEOF=1 Q
-	. I $A(@VVJSON@(VVLINE),VVIDX)>32 S VVDONE=1 Q
-	. S VVIDX=VVIDX+1
-	Q:VVEOF ""
-	S VVTOKEN=$E(@VVJSON@(VVLINE),VVIDX),VVIDX=VVIDX+1
-	Q VVTOKEN
-ADDSTR
-	N VVEND,VVX
-	S VVEND=$F(@VVJSON@(VVLINE),"""",VVIDX)
-	I VVEND,($E(@VVJSON@(VVLINE),VVEND-2)'="\") D SETSTR  Q
-	I VVEND,$$ISCLOSEQ(VVLINE) D SETSTR Q
-	N VVDONE,VVTLINE
-	S VVDONE=0,VVTLINE=VVLINE
-	F  D  Q:VVDONE  Q:VVERRORS
-	. I 'VVEND S VVTLINE=VVTLINE+1,VVEND=1 I '$D(@VVJSON@(VVTLINE)) D ERRX("EIQ") Q
-	. S VVEND=$F(@VVJSON@(VVTLINE),"""",VVEND)
-	. I VVEND,$E(@VVJSON@(VVTLINE),VVEND-2)'="\" S VVDONE=1 Q
-	. S VVDONE=$$ISCLOSEQ(VVTLINE)
-	Q:VVERRORS
-	D UESEXT
-	S VVLINE=VVTLINE,VVIDX=VVEND
-	Q
-SETSTR
-	N VVX
-	S VVX=$E(@VVJSON@(VVLINE),VVIDX,VVEND-2),VVIDX=VVEND
-	S @$$CURNODE()=$$UES(VVX)
-	I VVIDX>$L(@VVJSON@(VVLINE)) S VVLINE=VVLINE+1,VVIDX=1
-	Q
-UESEXT
-	N VVI,VVY,VVSTART,VVSTOP,VVDONE,VVBUF,VVNODE,VVMORE,VVTO
-	S VVNODE=$$CURNODE(),VVBUF="",VVMORE=0,VVSTOP=VVEND-2
-	S VVI=VVIDX,VVY=VVLINE,VVDONE=0
-	F  D  Q:VVDONE  Q:VVERRORS
-	. S VVSTART=VVI,VVI=$F(@VVJSON@(VVY),"\",VVI)
-	. I (VVY=VVTLINE) S VVTO=$S('VVI:VVSTOP,VVI>VVSTOP:VVSTOP,1:VVI-2) I 1
-	. E  S VVTO=$S('VVI:99999,1:VVI-2)
-	. D ADDBUF($E(@VVJSON@(VVY),VVSTART,VVTO))
-	. I (VVY'<VVTLINE),(('VVI)!(VVI>VVSTOP)) S VVDONE=1 QUIT
-	. I 'VVI S VVY=VVY+1,VVI=1 QUIT 
-	. I VVI>$L(@VVJSON@(VVY)) S VVY=VVY+1,VVI=1 I '$D(@VVJSON@(VVY)) D ERRX("EIU")
-	. D ADDBUF($$REALCHAR($E(@VVJSON@(VVY),VVI),@VVJSON@(VVY),.VVI))
-	. S VVI=VVI+1
-	. I (VVY'<VVTLINE),(VVI>VVSTOP) S VVDONE=1
-	Q:VVERRORS
-	D SAVEBUF
-	Q
-ADDBUF(VVX)
-	I $L(VVX)+$L(VVBUF)>VVMAX D SAVEBUF
-	S VVBUF=VVBUF_VVX
-	Q
-SAVEBUF
-	I 'VVMORE S @VVNODE=VVBUF S:+VVBUF=VVBUF @VVNODE@("\s")="" I 1
-	E  S @VVNODE@("\",VVMORE)=VVBUF
-	S VVMORE=VVMORE+1,VVBUF=""
-	Q
-ISCLOSEQ(VVBLINE)
-	N VVBACK,VVBIDX
-	S VVBACK=0,VVBIDX=VVEND-2
-	F  D  Q:$E(@VVJSON@(VVBLINE),VVBIDX)'="\"  Q:VVERRORS
-	. S VVBACK=VVBACK+1,VVBIDX=VVBIDX-1
-	. I (VVBLINE=VVLINE),(VVBIDX=VVIDX) Q
-	. Q:VVBIDX
-	. S VVBLINE=VVBLINE-1 I VVBLINE<VVLINE D ERRX("RSB") Q
-	. S VVBIDX=$L(@VVJSON@(VVBLINE))
-	Q VVBACK#2=0
-NAMPARS()
-	N VVEND,VVDONE,VVNAME
-	S VVDONE=0,VVNAME=""
-	F  D  Q:VVDONE  Q:VVERRORS
-	. S VVEND=$F(@VVJSON@(VVLINE),"""",VVIDX)
-	. I VVEND S VVNAME=VVNAME_$E(@VVJSON@(VVLINE),VVIDX,VVEND-2),VVIDX=VVEND,VVDONE=1
-	. I 'VVEND S VVNAME=VVNAME_$E(@VVJSON@(VVLINE),VVIDX,$L(@VVJSON@(VVLINE)))
-	. I 'VVEND!(VVEND>$L(@VVJSON@(VVLINE))) S VVLINE=VVLINE+1,VVIDX=1 I '$D(@VVJSON@(VVLINE)) D ERRX("ORN")
-	Q VVNAME
-NUMPARS(VVDIGIT)
-	N VVDONE,VVNUM
-	S VVDONE=0,VVNUM=VVDIGIT
-	F  D  Q:VVDONE  Q:VVERRORS
-	. I '("0123456789+-.eE"[$E(@VVJSON@(VVLINE),VVIDX)) S VVDONE=1 Q
-	. S VVNUM=VVNUM_$E(@VVJSON@(VVLINE),VVIDX)
-	. S VVIDX=VVIDX+1 I VVIDX>$L(@VVJSON@(VVLINE)) S VVLINE=VVLINE+1,VVIDX=1 I '$D(@VVJSON@(VVLINE)) D ERRX("OR#")
-	Q VVNUM
-SETBOOL(VVX)
-	S @$$CURNODE()=VVX
-	S VVIDX=VVIDX+$L(VVX)-1
-	N VVDIFF S VVDIFF=VVIDX-$L(@VVJSON@(VVLINE))
-	I VVDIFF>0 S VVLINE=VVLINE+1,VVIDX=VVDIFF I '$D(@VVJSON@(VVLINE)) D ERRX("ORB")
-	Q
-CURNODE()
-	N VVI,VVSUBS
-	S VVSUBS=""
-	F VVI=1:1:VVSTACK S:VVI>1 VVSUBS=VVSUBS_"," D
-	. I $$NUMERIC(VVSTACK(VVI))  S VVSUBS=VVSUBS_VVSTACK(VVI)
-	. E  S VVSUBS=VVSUBS_""""_VVSTACK(VVI)_""""
-	Q VVROOT_VVSUBS_")"
-UES(X)
-	N POS,Y,START
-	S POS=0,Y=""
-	F  S START=POS+1 D  Q:START>$L(X)
-	. S POS=$F(X,"\",POS+1)
-	. I 'POS S Y=Y_$E(X,START,$L(X)),POS=$L(X) I 1
-	. E  S Y=Y_$E(X,START,POS-2)_$$REALCHAR($E(X,POS),X,.POS)
-	Q Y
-REALCHAR(C,X,POS)
-	N OPOS
-	I C="""" Q """"
-	I C="/" Q "/"
-	I C="\" Q "\"
-	I C="b" Q $C(8)
-	I C="f" Q $C(12)
-	I C="n" Q $C(10)
-	I C="r" Q $C(13)
-	I C="t" Q $C(9)
-	I C="u" S OPOS=POS S POS=POS+4 Q $C($$FUNC^%HD($E(X,OPOS+1,OPOS+4)))
-	Q C
+encode(vvroot,vvjson,vverr)
+	if '$zlength($get(vvroot)) quit
+	if '$zlength($get(vvjson)) quit
+	new vvline,vvmax,vverrors
+	set vvline=1,vvmax=4080,vverrors=0
+	set @vvjson@(vvline)=""
+	do serobj(vvroot)
+	quit
+serobj(vvroot)
+	new vvfirst,vvsub,vvnxt
+	set @vvjson@(vvline)=@vvjson@(vvline)_"{"
+	set vvfirst=1
+	set vvsub="" for  set vvsub=$order(@vvroot@(vvsub)) quit:vvsub=""  do
+	. set:'vvfirst @vvjson@(vvline)=@vvjson@(vvline)_"," set vvfirst=0
+	. do sername(vvsub)
+	. if $$isvalue(vvroot,vvsub) do serval(vvroot,vvsub) quit
+	. if $data(@vvroot@(vvsub))=10 set vvnxt=$order(@vvroot@(vvsub,"")) do  quit
+	. . if +vvnxt do serary($name(@vvroot@(vvsub))) if 1
+	. . else  do serobj($name(@vvroot@(vvsub)))
+	. do errx("sob",vvsub)
+	set @vvjson@(vvline)=@vvjson@(vvline)_"}"
+	quit
+serary(vvroot)
+	new vvfirst,vvi,vvnxt
+	set @vvjson@(vvline)=@vvjson@(vvline)_"["
+	set vvfirst=1
+	set vvi=0 for  set vvi=$order(@vvroot@(vvi)) quit:'vvi  do
+	. set:'vvfirst @vvjson@(vvline)=@vvjson@(vvline)_"," set vvfirst=0
+	. if $$isvalue(vvroot,vvi) do serval(vvroot,vvi) quit 
+	. if $data(@vvroot@(vvi))=10 set vvnxt=$order(@vvroot@(vvi,"")) do  quit
+	. . if +vvnxt do serary($name(@vvroot@(vvi))) if 1
+	. . else  do serobj($name(@vvroot@(vvi)))
+	. do errx("sar",vvi)
+	set @vvjson@(vvline)=@vvjson@(vvline)_"]"
+	quit
+sername(vvsub)
+	if ($zlength(vvsub)+$zlength(@vvjson@(vvline)))>vvmax set vvline=vvline+1,@vvjson@(vvline)=""
+	set @vvjson@(vvline)=@vvjson@(vvline)_""""_vvsub_""""_":"
+	quit
+serval(vvroot,vvsub)
+	new vvx,vvi
+	if $data(@vvroot@(vvsub,":")) do  quit
+	. set vvx=$get(@vvroot@(vvsub,":")) do:$zlength(vvx) concat
+	. set vvi=0 for  set vvi=$order(@vvroot@(vvsub,":",vvi)) quit:'vvi  set vvx=@vvroot@(vvsub,":",vvi) do concat
+	set vvx=$get(@vvroot@(vvsub))
+	if '$data(@vvroot@(vvsub,"\s")),$$numeric(vvx) do concat quit
+	if (vvx="true")!(vvx="false")!(vvx="null") do concat quit
+	set vvx=""""_$$esc(vvx)
+	do concat
+	if $data(@vvroot@(vvsub,"\")) do
+	. set vvi=0 for  set vvi=$order(@vvroot@(vvsub,"\",vvi)) quit:'vvi   do
+	. . set vvx=$$esc(@vvroot@(vvsub,"\",vvi))
+	. . do concat
+	set vvx="""" do concat
+	quit
+concat
+	if ($zlength(vvx)+$zlength(@vvjson@(vvline)))>vvmax set vvline=vvline+1,@vvjson@(vvline)=""
+	set @vvjson@(vvline)=@vvjson@(vvline)_vvx
+	quit
+isvalue(vvroot,vvsub)
+	if $data(@vvroot@(vvsub))#2 quit 1
+	new vvx set vvx=$order(@vvroot@(vvsub,""))
+	quit:vvx="\" 1
+	quit:vvx=":" 1
+	quit 0
+numeric(x) 
+	if $zlength(x,".")>2 quit 0
+	if $zextract(x,1,2)="-." quit 0
+	if x=+x,$zlength(x)'=$zlength(+x) quit 0
+	if $zextract(x)="." quit 0
+	if x=+x quit 1
+	quit 0
+esc(x)
+	new y,%DH
+	set y=x
+	if x["\"  set y=$$replace(y,"\","\\")
+	if x["""" set y=$$replace(y,"""","\""")
+	if x["/"  set y=$$replace(y,"/","\/")
+	if x[$char(8) set y=$$replace(y,$char(8),"\"_$char(98))
+	if x[$char(12) set y=$$replace(y,$char(12),"\"_$char(102))
+	if x[$char(10) set y=$$replace(y,$char(10),"\"_$char(110))
+	if x[$char(13) set y=$$replace(y,$char(13),"\"_$char(114))
+	if x[$char(9) set y=$$replace(y,$char(9),"\"_$char(116))
+	new i for i=1:1:$zlength(x) do
+	. if $ascii($zextract(x,i))=8   quit 
+	. if $ascii($zextract(x,i))=12  quit 
+	. if $ascii($zextract(x,i))=10  quit 
+	. if $ascii($zextract(x,i))=13  quit 
+	. if $ascii($zextract(x,i))=9   quit 
+	. if $ascii($zextract(x,i))>=33 quit
+	. set %DH=$ascii($zextract(x,i))
+	. do ^%DH
+	. set y=$$replace(y,$zextract(x,i),"\u"_$zextract(%DH,$zlength(%DH)-3,$zlength(%DH)))
+	quit y 
 	;
-HASH(X)
-	Q $$CRC32(X)
-SYSID() ;
-	S X=$SYSTEM
-	QUIT $$CRC16HEX(X)
-CRC16HEX(X)
-	QUIT $$BASE($$CRC16(X),10,16)
-CRC32HEX(X)
-	QUIT $$BASE($$CRC32(X),10,16)
-DEC2HEX(NUM)
-	Q $$BASE(NUM,10,16)
-HEX2DEC(HEX)
-	Q $$BASE(HEX,16,10)
-CRC32(string,seed) ;
-	N I,J,R
-	I '$D(seed) S R=4294967295
-	E  I seed'<0,seed'>4294967295 S R=4294967295-seed
-	E  S $ECODE=",M28,"
-	F I=1:1:$L(string) D
-	. S R=$$XOR($A(string,I),R,8)
-	. F J=0:1:7 D
-	. . I R#2 S R=$$XOR(R\2,3988292384,32)
-	. . E  S R=R\2
-	. . Q
-	. Q
-	Q 4294967295-R
-XOR(a,b,w) N I,M,R
-	S R=b,M=1
-	F I=1:1:w D
-	. S:a\M#2 R=R+$S(R\M#2:-M,1:M)
-	. S M=M+M
-	. Q
-	Q R
-BASE(%X1,%X2,%X3) ;Convert %X1 from %X2 base to %X3 base
-	I (%X2<2)!(%X2>16)!(%X3<2)!(%X3>16) Q -1
-	Q $$CNV($$DEC(%X1,%X2),%X3)
-DEC(N,B) ;Cnv N from B to 10
-	Q:B=10 N N I,Y S Y=0
-	F I=1:1:$L(N) S Y=Y*B+($F("0123456789ABCDEF",$E(N,I))-2)
-	Q Y
-CNV(N,B) ;Cnv N from 10 to B
-	Q:B=10 N N I,Y S Y=""
-	F I=1:1 S Y=$E("0123456789ABCDEF",N#B+1)_Y,N=N\B Q:N<1
-	Q Y
-CRC16(string,seed) ;
-	; Polynomial x**16 + x**15 + x**2 + x**0
-	N I,J,R
-	I '$D(seed) S R=0
-	E  I seed'<0,seed'>65535 S R=seed\1
-	E  S $ECODE=",M28,"
-	F I=1:1:$L(string) D
-	. S R=$$XOR($A(string,I),R,8)
-	. F J=0:1:7 D
-	. . I R#2 S R=$$XOR(R\2,40961,16)
-	. . E  S R=R\2
-	. . Q
-	. Q
-	Q R
+errx(id,val)
+	new errmsg
+	if id="stl{" set errmsg="stack too large for new object." goto xerrx
+	if id="suf}" set errmsg="stack underflow - extra } found" goto xerrx
+	if id="stl[" set errmsg="stack too large for new array." goto xerrx
+	if id="suf]" set errmsg="stack underflow - extra ] found." goto xerrx
+	if id="obm" set errmsg="array missmatch - expected ] got }." goto xerrx
+	if id="arm" set errmsg="object mismatch - expected } got ]." goto xerrx
+	if id="mpn" set errmsg="missing property name." goto xerrx
+	if id="ext" set errmsg="expected true, got "_val goto xerrx
+	if id="exf" set errmsg="expected false, got "_val goto xerrx
+	if id="exn" set errmsg="expected null, got "_val goto xerrx
+	if id="tkn" set errmsg="unable to identify type of token, value was "_val goto xerrx
+	if id="sct" set errmsg="stack mismatch - exit stack level was  "_val goto xerrx
+	if id="eiq" set errmsg="close quote not found before end of input." goto xerrx
+	if id="eiu" set errmsg="unexpected end of input while unescaping." goto xerrx
+	if id="rsb" set errmsg="reverse search for \ past beginning of input." goto xerrx
+	if id="orn" set errmsg="overrun while scanning name." goto xerrx
+	if id="or#" set errmsg="overrun while scanning number." goto xerrx
+	if id="orb" set errmsg="overrun while scanning boolean." goto xerrx
+	if id="esc" set errmsg="escaped character not recognized"_val goto xerrx
+	if id="sob" set errmsg="unable to serialize node as object, value was "_val goto xerrx
+	if id="sar" set errmsg="unable to serialize node as array, value was "_val goto xerrx
+	set errmsg="unspecified error "_id_" "_$get(val)
+xerrx
+	set @vverr@(0)=$get(@vverr@(0))+1
+	set @vverr@(@vverr@(0))=errmsg
+	set vverrors=vverrors+1
+	quit
 	;
-HTFM(%H,%F) ;$H to FM, %F=1 for date only
-	N X,%,%T,%Y,%M,%D S:'$D(%F) %F=0
-	I $$HR(%H) Q -1 ;Check Range
-	I '%F,%H[",0" S %H=(%H-1)_",86400"
-	D YMD S:%T&('%F) X=X_%T
-	Q X
-YMD ;21608 = 28 feb 1900, 94657 = 28 feb 2100, 141 $H base year
-	S %=(%H>21608)+(%H>94657)+%H-.1,%Y=%\365.25+141,%=%#365.25\1
-	S %D=%+306#(%Y#4=0+365)#153#61#31+1,%M=%-%D\29+1
-	S X=%Y_"00"+%M_"00"+%D,%=$P(%H,",",2)
-	S %T=%#60/100+(%#3600\60)/100+(%\3600)/100 S:'%T %T=".0"
-	Q
-HR(%V) ;Check $H in valid range
-	Q (%V<2)!(%V>99999)
+decode(vvjson,vvroot,vverr)
+direct
+	new vvmax set vvmax=4080
+	if $data(@vvjson)=1 new vvinput set vvinput(1)=@vvjson,vvjson="vvinput"
+	set vvroot=$name(@vvroot@("z")),vvroot=$zextract(vvroot,1,$zlength(vvroot)-4) ; make open array ref
+	new vvline,vvidx,vvstack,vvprop,vvtype,vverrors
+	set vvline=$order(@vvjson@("")),vvidx=1,vvstack=0,vvprop=0,vverrors=0
+	for  set vvtype=$$nxtkn() quit:vvtype=""  do  if vverrors quit
+	. if vvtype="{" set vvstack=vvstack+1,vvstack(vvstack)="",vvprop=1 do:vvstack>64 errx("stl{") quit
+	. if vvtype="}" do:$$numeric(vvstack(vvstack)) errx("obm") set vvstack=vvstack-1 do:vvstack<0 errx("suf}") quit
+	. if vvtype="[" set vvstack=vvstack+1,vvstack(vvstack)=1 do:vvstack>64 errx("stl[") quit
+	. if vvtype="]" do:'$$numeric(vvstack(vvstack)) errx("arm") set vvstack=vvstack-1 do:vvstack<0 errx("suf]") quit
+	. if vvtype="," do  quit
+	. . if vvstack(vvstack) set vvstack(vvstack)=vvstack(vvstack)+1  ; next in array
+	. . else  set vvprop=1                                   ; or next property name
+	. if vvtype=":" set vvprop=0 do:'$zlength($get(vvstack(vvstack))) errx("mpn") quit
+	. if vvtype="""" do  quit
+	. . if vvprop set vvstack(vvstack)=$$nampars() if 1
+	. . else  do addstr
+	. set vvtype=$translate(vvtype,"tfn","tfn")
+	. if vvtype="t"  do  quit
+	. . if $zlength(@vvjson@(vvline))<=vvidx+2,$data(@vvjson@(vvline+1)) do
+	. . . set @vvjson@(vvline)=@vvjson@(vvline)_$zextract(@vvjson@(vvline+1),1,2),@vvjson@(vvline+1)=$zextract(@vvjson@(vvline+1),3,$zlength(@vvjson@(vvline+1)))
+	. . if $translate($zextract(@vvjson@(vvline),vvidx,vvidx+2),"rue","rue")="rue" do setbool("true") if 1
+	. . else  break  do errx("ext",vvtype)
+	. if vvtype="f" do  quit
+	. . if $zlength(@vvjson@(vvline))<=vvidx+3,$data(@vvjson@(vvline+1)) do
+	. . . set @vvjson@(vvline)=@vvjson@(vvline)_$zextract(@vvjson@(vvline+1),1,3),@vvjson@(vvline+1)=$zextract(@vvjson@(vvline+1),4,$zlength(@vvjson@(vvline+1)))
+	. . if $translate($zextract(@vvjson@(vvline),vvidx,vvidx+3),"alse","alse")="alse" do setbool("false") if 1
+	. . else  do errx("exf",vvtype)
+	. if vvtype="n" do  quit
+	. . if $zlength(@vvjson@(vvline))<=vvidx+2,$data(@vvjson@(vvline+1)) do
+	. . . set @vvjson@(vvline)=@vvjson@(vvline)_$zextract(@vvjson@(vvline+1),1,2),@vvjson@(vvline+1)=$zextract(@vvjson@(vvline+1),3,$zlength(@vvjson@(vvline+1)))
+	. . if $translate($zextract(@vvjson@(vvline),vvidx,vvidx+2),"ull","ull")="ull" do setbool("null") if 1
+	. . else  do errx("exn",vvtype)
+	. if "0123456789+-.ee"[vvtype set @$$curnode()=$$numpars(vvtype) quit
+	. do errx("tkn",vvtype_"["_$zextract(@vvjson@(vvline),vvidx,vvidx+2)_"] ")
+	if vvstack'=0 do errx("sct",vvstack)
+	quit
+nxtkn()
+	new vvdone,vveof,vvtoken
+	set vvdone=0,vveof=0 for  do  quit:vvdone!vveof
+	. if vvidx>$zlength(@vvjson@(vvline)) set vvline=$order(@vvjson@(vvline)),vvidx=1 if 'vvline set vveof=1 quit
+	. if $ascii(@vvjson@(vvline),vvidx)>32 set vvdone=1 quit
+	. set vvidx=vvidx+1
+	quit:vveof ""
+	set vvtoken=$zextract(@vvjson@(vvline),vvidx),vvidx=vvidx+1
+	quit vvtoken
+addstr
+	new vvend,vvx
+	set vvend=$find(@vvjson@(vvline),"""",vvidx)
+	if vvend,($zextract(@vvjson@(vvline),vvend-2)'="\") do setstr  quit
+	if vvend,$$iscloseq(vvline) do setstr quit
+	new vvdone,vvtline
+	set vvdone=0,vvtline=vvline
+	for  do  quit:vvdone  quit:vverrors
+	. if 'vvend set vvtline=vvtline+1,vvend=1 if '$data(@vvjson@(vvtline)) do errx("eiq") quit
+	. set vvend=$find(@vvjson@(vvtline),"""",vvend)
+	. if vvend,$zextract(@vvjson@(vvtline),vvend-2)'="\" set vvdone=1 quit
+	. set vvdone=$$iscloseq(vvtline)
+	quit:vverrors
+	do uesext
+	set vvline=vvtline,vvidx=vvend
+	quit
+setstr
+	new vvx
+	set vvx=$zextract(@vvjson@(vvline),vvidx,vvend-2),vvidx=vvend
+	set @$$curnode()=$$ues(vvx)
+	if vvidx>$zlength(@vvjson@(vvline)) set vvline=vvline+1,vvidx=1
+	quit
+uesext
+	new vvi,vvy,vvstart,vvstop,vvdone,vvbuf,vvnode,vvmore,vvto
+	set vvnode=$$curnode(),vvbuf="",vvmore=0,vvstop=vvend-2
+	set vvi=vvidx,vvy=vvline,vvdone=0
+	for  do  quit:vvdone  quit:vverrors
+	. set vvstart=vvi,vvi=$find(@vvjson@(vvy),"\",vvi)
+	. if (vvy=vvtline) set vvto=$select('vvi:vvstop,vvi>vvstop:vvstop,1:vvi-2) if 1
+	. else  set vvto=$select('vvi:99999,1:vvi-2)
+	. do addbuf($zextract(@vvjson@(vvy),vvstart,vvto))
+	. if (vvy'<vvtline),(('vvi)!(vvi>vvstop)) set vvdone=1 quit
+	. if 'vvi set vvy=vvy+1,vvi=1 quit 
+	. if vvi>$zlength(@vvjson@(vvy)) set vvy=vvy+1,vvi=1 if '$data(@vvjson@(vvy)) do errx("eiu")
+	. do addbuf($$realchar($zextract(@vvjson@(vvy),vvi),@vvjson@(vvy),.vvi))
+	. set vvi=vvi+1
+	. if (vvy'<vvtline),(vvi>vvstop) set vvdone=1
+	quit:vverrors
+	do savebuf
+	quit
+addbuf(vvx)
+	if $zlength(vvx)+$zlength(vvbuf)>vvmax do savebuf
+	set vvbuf=vvbuf_vvx
+	quit
+savebuf
+	if 'vvmore set @vvnode=vvbuf set:+vvbuf=vvbuf @vvnode@("\s")="" if 1
+	else  set @vvnode@("\",vvmore)=vvbuf
+	set vvmore=vvmore+1,vvbuf=""
+	quit
+iscloseq(vvbline)
+	new vvback,vvbidx
+	set vvback=0,vvbidx=vvend-2
+	for  do  quit:$zextract(@vvjson@(vvbline),vvbidx)'="\"  quit:vverrors
+	. set vvback=vvback+1,vvbidx=vvbidx-1
+	. if (vvbline=vvline),(vvbidx=vvidx) quit
+	. quit:vvbidx
+	. set vvbline=vvbline-1 if vvbline<vvline do errx("rsb") quit
+	. set vvbidx=$zlength(@vvjson@(vvbline))
+	quit vvback#2=0
+nampars()
+	new vvend,vvdone,vvname
+	set vvdone=0,vvname=""
+	for  do  quit:vvdone  quit:vverrors
+	. set vvend=$find(@vvjson@(vvline),"""",vvidx)
+	. if vvend set vvname=vvname_$zextract(@vvjson@(vvline),vvidx,vvend-2),vvidx=vvend,vvdone=1
+	. if 'vvend set vvname=vvname_$zextract(@vvjson@(vvline),vvidx,$zlength(@vvjson@(vvline)))
+	. if 'vvend!(vvend>$zlength(@vvjson@(vvline))) set vvline=vvline+1,vvidx=1 if '$data(@vvjson@(vvline)) do errx("orn")
+	quit vvname
+numpars(vvdigit)
+	new vvdone,vvnum
+	set vvdone=0,vvnum=vvdigit
+	for  do  quit:vvdone  quit:vverrors
+	. if '("0123456789+-.ee"[$zextract(@vvjson@(vvline),vvidx)) set vvdone=1 quit
+	. set vvnum=vvnum_$zextract(@vvjson@(vvline),vvidx)
+	. set vvidx=vvidx+1 if vvidx>$zlength(@vvjson@(vvline)) set vvline=vvline+1,vvidx=1 if '$data(@vvjson@(vvline)) do errx("or#")
+	quit vvnum
+setbool(vvx)
+	set @$$curnode()=vvx
+	set vvidx=vvidx+$zlength(vvx)-1
+	new vvdiff set vvdiff=vvidx-$zlength(@vvjson@(vvline))
+	if vvdiff>0 set vvline=vvline+1,vvidx=vvdiff if '$data(@vvjson@(vvline)) do errx("orb")
+	quit
+curnode()
+	new vvi,vvsubs
+	set vvsubs=""
+	for vvi=1:1:vvstack set:vvi>1 vvsubs=vvsubs_"," do
+	. if $$numeric(vvstack(vvi))  set vvsubs=vvsubs_vvstack(vvi)
+	. else  set vvsubs=vvsubs_""""_vvstack(vvi)_""""
+	quit vvroot_vvsubs_")"
+ues(x)
+	new pos,y,start
+	set pos=0,y=""
+	for  set start=pos+1 do  quit:start>$zlength(x)
+	. set pos=$find(x,"\",pos+1)
+	. if 'pos set y=y_$zextract(x,start,$zlength(x)),pos=$zlength(x) if 1
+	. else  set y=y_$zextract(x,start,pos-2)_$$realchar($zextract(x,pos),x,.pos)
+	quit y
+realchar(c,x,pos)
+	new opos
+	if c="""" quit """"
+	if c="/" quit "/"
+	if c="\" quit "\"
+	if c="b" quit $char(8)
+	if c="f" quit $char(12)
+	if c="n" quit $char(10)
+	if c="r" quit $char(13)
+	if c="t" quit $char(9)
+	if c="u" set opos=pos set pos=pos+4 quit $char($$FUNC^%HD($zextract(x,opos+1,opos+4)))
+	quit c
 	;
-HTE(%H,%F) ;$H to external
-	Q:$$HR(%H) %H ;Range Check
-	N Y,%T,%R
-	S %F=$G(%F,1) S Y=$$HTFM(%H,0)
-T2 S %T="."_$E($P(Y,".",2)_"000000",1,7)
-	D FMT Q %R
-FMT ;
-	N %G S %G=+%F
-	G F1:%G=1,F2:%G=2,F3:%G=3,F4:%G=4,F5:%G=5,F6:%G=6,F7:%G=7,F8:%G=8,F9:%G=9,F1
-	Q
+hash(x)
+	quit $$crc32(x)
+sysid() ;
+	set x=$system
+	quit $$crc16hex(x)
+crc16hex(x)
+	quit $$base($$crc16(x),10,16)
+crc32hex(x)
+	quit $$base($$crc32(x),10,16)
+dec2hex(num)
+	quit $$base(num,10,16)
+hex2dec(hex)
+	quit $$base(hex,16,10)
+crc32(string,seed) ;
+	new i,j,r
+	if '$data(seed) set r=4294967295
+	else  if seed'<0,seed'>4294967295 set r=4294967295-seed
+	else  set $ecode=",m28,"
+	for i=1:1:$zlength(string) do
+	. set r=$$xor($ascii(string,i),r,8)
+	. for j=0:1:7 do
+	. . if r#2 set r=$$xor(r\2,3988292384,32)
+	. . else  set r=r\2
+	. . quit
+	. quit
+	quit 4294967295-r
+xor(a,b,w) new i,m,r
+	set r=b,m=1
+	for i=1:1:w do
+	. set:a\m#2 r=r+$select(r\m#2:-m,1:m)
+	. set m=m+m
+	. quit
+	quit r
+base(%x1,%x2,%x3) ;convert %x1 from %x2 base to %x3 base
+	if (%x2<2)!(%x2>16)!(%x3<2)!(%x3>16) quit -1
+	quit $$cnv($$dec(%x1,%x2),%x3)
+dec(n,b) ;cnv n from b to 10
+	quit:b=10 n new i,y set y=0
+	for i=1:1:$zlength(n) set y=y*b+($find("0123456789abcdef",$zextract(n,i))-2)
+	quit y
+cnv(n,b) ;cnv n from 10 to b
+	quit:b=10 n new i,y set y=""
+	for i=1:1 set y=$zextract("0123456789abcdef",n#b+1)_y,n=n\b quit:n<1
+	quit y
+crc16(string,seed) ;
+	; polynomial x**16 + x**15 + x**2 + x**0
+	new i,j,r
+	if '$data(seed) set r=0
+	else  if seed'<0,seed'>65535 set r=seed\1
+	else  set $ecode=",m28,"
+	for i=1:1:$zlength(string) do
+	. set r=$$xor($ascii(string,i),r,8)
+	. for j=0:1:7 do
+	. . if r#2 set r=$$xor(r\2,40961,16)
+	. . else  set r=r\2
+	. . quit
+	. quit
+	quit r
 	;
-F1 ;Apr 10, 2002
-	S %R=$P($$M()," ",$S($E(Y,4,5):$E(Y,4,5)+2,1:0))_$S($E(Y,4,5):" ",1:"")_$S($E(Y,6,7):$E(Y,6,7)_", ",1:"")_($E(Y,1,3)+1700)
+htfm(%h,%f) ;$h to fm, %f=1 for date only
+	new x,%,%t,%y,%m,%d set:'$data(%f) %f=0
+	if $$hr(%h) quit -1 ;check range
+	if '%f,%h[",0" set %h=(%h-1)_",86400"
+	do ymd set:%t&('%f) x=x_%t
+	quit x
+ymd ;21608 = 28 feb 1900, 94657 = 28 feb 2100, 141 $h base year
+	set %=(%h>21608)+(%h>94657)+%h-.1,%y=%\365.25+141,%=%#365.25\1
+	set %d=%+306#(%y#4=0+365)#153#61#31+1,%m=%-%d\29+1
+	set x=%y_"00"+%m_"00"+%d,%=$zpiece(%h,",",2)
+	set %t=%#60/100+(%#3600\60)/100+(%\3600)/100 set:'%t %t=".0"
+	quit
+hr(%v) ;check $h in valid range
+	quit (%v<2)!(%v>99999)
 	;
-TM ;All formats come here to format Time. ;
-	N %,%S Q:%T'>0!(%F["D")
-	I %F'["P" S %R=%R_"@"_$E(%T,2,3)_":"_$E(%T,4,5)_$S(%F["M":"",$E(%T,6,7)!(%F["S"):":"_$E(%T,6,7),1:"")
-	I %F["P" D
-	. S %R=%R_" "_$S($E(%T,2,3)>12:$E(%T,2,3)-12,+$E(%T,2,3)=0:"12",1:+$E(%T,2,3))_":"_$E(%T,4,5)_$S(%F["M":"",$E(%T,6,7)!(%F["S"):":"_$E(%T,6,7),1:"")
-	. S %R=%R_$S($E(%T,2,7)<120000:" am",$E(%T,2,3)=24:" am",1:" pm")
-	. Q
-	Q
-	;Return Month names
-M() Q "  Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec"
+hte(%h,%f) ;$h to external
+	quit:$$hr(%h) %h ;range check
+	new y,%t,%r
+	set %f=$get(%f,1) set y=$$htfm(%h,0)
+t2 set %t="."_$zextract($zpiece(y,".",2)_"000000",1,7)
+	do fmt quit %r
+fmt ;
+	new %g set %g=+%f
+	goto f1:%g=1,f2:%g=2,f3:%g=3,f4:%g=4,f5:%g=5,f6:%g=6,f7:%g=7,f8:%g=8,f9:%g=9,f1
+	quit
 	;
-F2 ;4/10/02
-	S %R=$J(+$E(Y,4,5),2)_"/"_$J(+$E(Y,6,7),2)_"/"_$E(Y,2,3)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F3 ;10/4/02
-	S %R=$J(+$E(Y,6,7),2)_"/"_$J(+$E(Y,4,5),2)_"/"_$E(Y,2,3)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F4 ;02/4/10
-	S %R=$E(Y,2,3)_"/"_$J(+$E(Y,4,5),2)_"/"_$J(+$E(Y,6,7),2)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F5 ;4/10/2002
-	S %R=$J(+$E(Y,4,5),2)_"/"_$J(+$E(Y,6,7),2)_"/"_($E(Y,1,3)+1700)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F6 ;10/4/2002
-	S %R=$J(+$E(Y,6,7),2)_"/"_$J(+$E(Y,4,5),2)_"/"_($E(Y,1,3)+1700)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F7 ;2002/4/10
-	S %R=($E(Y,1,3)+1700)_"/"_$J(+$E(Y,4,5),2)_"/"_$J(+$E(Y,6,7),2)
-	S:%F["Z" %R=$TR(%R," ","0") S:%F'["F" %R=$TR(%R," ")
-	G TM
-F8 ;10 Apr 02
-	S %R=$S($E(Y,6,7):$E(Y,6,7)_" ",1:"")_$P($$M()," ",$S($E(Y,4,5):$E(Y,4,5)+2,1:0))_$S($E(Y,4,5):" ",1:"")_$E(Y,2,3)
-	G TM
-F9 ;10 Apr 2002
-	S %R=$S($E(Y,6,7):$E(Y,6,7)_" ",1:"")_$P($$M()," ",$S($E(Y,4,5):$E(Y,4,5)+2,1:0))_$S($E(Y,4,5):" ",1:"")_($E(Y,1,3)+1700)
-	G TM
+f1 ;apr 10, 2002
+	set %r=$zpiece($$m()," ",$select($zextract(y,4,5):$zextract(y,4,5)+2,1:0))_$select($zextract(y,4,5):" ",1:"")_$select($zextract(y,6,7):$zextract(y,6,7)_", ",1:"")_($zextract(y,1,3)+1700)
 	;
-PARSE10(BODY,PARSED)
-	N LL S LL="" ; Last line
-	N L S L=1 ; Line counter. ;
-	K PARSED ; Kill return array
-	N I S I="" F  S I=$O(BODY(I)) Q:'I  D  ; For each 4080 character block
-	. N J F J=1:1:$L(BODY(I),$C(10)) D  ; For each line
-	. . S:(J=1&(L>1)) L=L-1 ; Replace old line (see 2 lines below)
-	. . S PARSED(L)=$TR($P(BODY(I),$C(10),J),$C(13)) ; Get line; Take CR out if there. ;
-	. . S:(J=1&(L>1)) PARSED(L)=LL_PARSED(L) ; If first line, append the last line before it and replace it. ;
-	. . S LL=PARSED(L) ; Set last line
-	. . S L=L+1 ; LineNumber++
-	QUIT
+tm ;all formats come here to format time. ;
+	new %,%s quit:%t'>0!(%f["d")
+	if %f'["p" set %r=%r_"@"_$zextract(%t,2,3)_":"_$zextract(%t,4,5)_$select(%f["m":"",$zextract(%t,6,7)!(%f["s"):":"_$zextract(%t,6,7),1:"")
+	if %f["p" do
+	. set %r=%r_" "_$select($zextract(%t,2,3)>12:$zextract(%t,2,3)-12,+$zextract(%t,2,3)=0:"12",1:+$zextract(%t,2,3))_":"_$zextract(%t,4,5)_$select(%f["m":"",$zextract(%t,6,7)!(%f["s"):":"_$zextract(%t,6,7),1:"")
+	. set %r=%r_$select($zextract(%t,2,7)<120000:" am",$zextract(%t,2,3)=24:" am",1:" pm")
+	. quit
+	quit
+	;return month names
+m() quit "  jan feb mar apr may jun jul aug sep oct nov dec"
 	;
-ADDCRLF(RESULT) ; Add CRLF to each line
-	I $E($G(RESULT))="^" D  QUIT  ; Global
-	. N V,QL S V=RESULT,QL=$QL(V) F  S V=$Q(@V) Q:V=""  Q:$NA(@V,QL)'=RESULT  S @V=@V_$C(13,10)
-	E  D  ; Local variable passed by reference
-	. I $D(RESULT)#2 S RESULT=RESULT_$C(13,10)
-	. N V S V=$NA(RESULT) F  S V=$Q(@V) Q:V=""  S @V=@V_$C(13,10)
-	QUIT
+f2 ;4/10/02
+	set %r=$justify(+$zextract(y,4,5),2)_"/"_$justify(+$zextract(y,6,7),2)_"/"_$zextract(y,2,3)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f3 ;10/4/02
+	set %r=$justify(+$zextract(y,6,7),2)_"/"_$justify(+$zextract(y,4,5),2)_"/"_$zextract(y,2,3)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f4 ;02/4/10
+	set %r=$zextract(y,2,3)_"/"_$justify(+$zextract(y,4,5),2)_"/"_$justify(+$zextract(y,6,7),2)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f5 ;4/10/2002
+	set %r=$justify(+$zextract(y,4,5),2)_"/"_$justify(+$zextract(y,6,7),2)_"/"_($zextract(y,1,3)+1700)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f6 ;10/4/2002
+	set %r=$justify(+$zextract(y,6,7),2)_"/"_$justify(+$zextract(y,4,5),2)_"/"_($zextract(y,1,3)+1700)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f7 ;2002/4/10
+	set %r=($zextract(y,1,3)+1700)_"/"_$justify(+$zextract(y,4,5),2)_"/"_$justify(+$zextract(y,6,7),2)
+	set:%f["z" %r=$translate(%r," ","0") set:%f'["f" %r=$translate(%r," ")
+	goto tm
+f8 ;10 apr 02
+	set %r=$select($zextract(y,6,7):$zextract(y,6,7)_" ",1:"")_$zpiece($$m()," ",$select($zextract(y,4,5):$zextract(y,4,5)+2,1:0))_$select($zextract(y,4,5):" ",1:"")_$zextract(y,2,3)
+	goto tm
+f9 ;10 apr 2002
+	set %r=$select($zextract(y,6,7):$zextract(y,6,7)_" ",1:"")_$zpiece($$m()," ",$select($zextract(y,4,5):$zextract(y,4,5)+2,1:0))_$select($zextract(y,4,5):" ",1:"")_($zextract(y,1,3)+1700)
+	goto tm
 	;
-ENCODE64(X) ;
-	N RGZ,RGZ1,RGZ2,RGZ3,RGZ4,RGZ5,RGZ6
-	S RGZ=$$INIT64,RGZ1=""
-	F RGZ2=1:3:$L(X) D
-	. S RGZ3=0,RGZ6=""
-	. F RGZ4=0:1:2 D
-	. . S RGZ5=$A(X,RGZ2+RGZ4),RGZ3=RGZ3*256+$S(RGZ5<0:0,1:RGZ5)
-	. F RGZ4=1:1:4 S RGZ6=$E(RGZ,RGZ3#64+2)_RGZ6,RGZ3=RGZ3\64
-	. S RGZ1=RGZ1_RGZ6
-	S RGZ2=$L(X)#3
-	S:RGZ2 RGZ3=$L(RGZ1),$E(RGZ1,RGZ3-2+RGZ2,RGZ3)=$E("==",RGZ2,2)
-	Q RGZ1
-DECODE64(X) ;
-	N RGZ,RGZ1,RGZ2,RGZ3,RGZ4,RGZ5,RGZ6
-	S RGZ=$$INIT64,RGZ1=""
-	F RGZ2=1:4:$L(X) D
-	. S RGZ3=0,RGZ6=""
-	. F RGZ4=0:1:3 D
-	. . S RGZ5=$F(RGZ,$E(X,RGZ2+RGZ4))-3
-	. . S RGZ3=RGZ3*64+$S(RGZ5<0:0,1:RGZ5)
-	. F RGZ4=0:1:2 S RGZ6=$C(RGZ3#256)_RGZ6,RGZ3=RGZ3\256
-	. S RGZ1=RGZ1_RGZ6
-	Q $E(RGZ1,1,$L(RGZ1)-$L(X,"=")+1)
-INIT64() Q "=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+parse10(body,parsed)
+	new ll set ll="" ; last line
+	new l set l=1 ; line counter. ;
+	kill parsed ; kill return array
+	new i set i="" for  set i=$order(body(i)) quit:'i  do  ; for each 4080 character block
+	. new j for j=1:1:$zlength(body(i),$char(10)) do  ; for each line
+	. . set:(j=1&(l>1)) l=l-1 ; replace old line (see 2 lines below)
+	. . set parsed(l)=$translate($zpiece(body(i),$char(10),j),$char(13)) ; get line; take cr out if there. ;
+	. . set:(j=1&(l>1)) parsed(l)=ll_parsed(l) ; if first line, append the last line before it and replace it. ;
+	. . set ll=parsed(l) ; set last line
+	. . set l=l+1 ; linenumber++
+	quit
+	;
+addcrlf(result) ; add crlf to each line
+	if $zextract($get(result))="^" do  quit  ; global
+	. new v,ql set v=result,ql=$qlength(v) for  set v=$query(@v) quit:v=""  quit:$name(@v,ql)'=result  set @v=@v_$char(13,10)
+	else  do  ; local variable passed by reference
+	. if $data(result)#2 set result=result_$char(13,10)
+	. new v set v=$name(result) for  set v=$query(@v) quit:v=""  set @v=@v_$char(13,10)
+	quit
+	;
+encode64(x) ;
+	new rgz,rgz1,rgz2,rgz3,rgz4,rgz5,rgz6
+	set rgz=$$init64,rgz1=""
+	for rgz2=1:3:$zlength(x) do
+	. set rgz3=0,rgz6=""
+	. for rgz4=0:1:2 do
+	. . set rgz5=$ascii(x,rgz2+rgz4),rgz3=rgz3*256+$select(rgz5<0:0,1:rgz5)
+	. for rgz4=1:1:4 set rgz6=$zextract(rgz,rgz3#64+2)_rgz6,rgz3=rgz3\64
+	. set rgz1=rgz1_rgz6
+	set rgz2=$zlength(x)#3
+	set:rgz2 rgz3=$zlength(rgz1),$zextract(rgz1,rgz3-2+rgz2,rgz3)=$zextract("==",rgz2,2)
+	quit rgz1
+decode64(x) ;
+	new rgz,rgz1,rgz2,rgz3,rgz4,rgz5,rgz6
+	set rgz=$$init64,rgz1=""
+	for rgz2=1:4:$zlength(x) do
+	. set rgz3=0,rgz6=""
+	. for rgz4=0:1:3 do
+	. . set rgz5=$find(rgz,$zextract(x,rgz2+rgz4))-3
+	. . set rgz3=rgz3*64+$select(rgz5<0:0,1:rgz5)
+	. for rgz4=0:1:2 set rgz6=$char(rgz3#256)_rgz6,rgz3=rgz3\256
+	. set rgz1=rgz1_rgz6
+	quit $zextract(rgz1,1,$zlength(rgz1)-$zlength(x,"=")+1)
+init64() quit "=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 		;
-REPLACE(s,f,t)
-	i $tr(s,f)=s q s
-	n o,i s o="" f i=1:1:$l(s,f)  s o=o_$s(i<$l(s,f):$p(s,f,i)_t,1:$p(s,f,i))
-	q o
+replace(s,f,t)
+	if $translate(s,f)=s quit s
+	new o,i set o="" for i=1:1:$zlength(s,f)  set o=o_$select(i<$zlength(s,f):$zpiece(s,f,i)_t,1:$zpiece(s,f,i))
+	quit o
 	;
-GetMimeType(EXT)
-	I $G(EXT)="" S EXT="*"
-	S EXT=$$LOW^%YDBUTILS(EXT)
-	I '$D(%YDBWEB(":WS","MIME")) D
-	. S %YDBWEB(":WS","MIME","html")="text/html" 
-	. S %YDBWEB(":WS","MIME","htm")="text/html" 
-	. S %YDBWEB(":WS","MIME","shtml")="text/html"
-	. S %YDBWEB(":WS","MIME","css")="text/css"
-	. S %YDBWEB(":WS","MIME","xml")="text/xml"
-	. S %YDBWEB(":WS","MIME","gif")="image/gif"
-	. S %YDBWEB(":WS","MIME","jpeg")="image/jpeg" 
-	. S %YDBWEB(":WS","MIME","jpg")="image/jpeg"
-	. S %YDBWEB(":WS","MIME","js")="application/javascript"
-	. S %YDBWEB(":WS","MIME","atom")="application/atom+xml"
-	. S %YDBWEB(":WS","MIME","rss")="application/rss+xml"
-	. S %YDBWEB(":WS","MIME","mml")="text/mathml"
-	. S %YDBWEB(":WS","MIME","txt")="text/plain"
-	. S %YDBWEB(":WS","MIME","jad")="text/vnd.sun.j2me.app-descriptor"
-	. S %YDBWEB(":WS","MIME","wml")="text/vnd.wap.wml"
-	. S %YDBWEB(":WS","MIME","htc")="text/x-component"
-	. S %YDBWEB(":WS","MIME","png")="image/png"
-	. S %YDBWEB(":WS","MIME","tif")="image/tiff" 
-	. S %YDBWEB(":WS","MIME","tiff")="image/tiff"
-	. S %YDBWEB(":WS","MIME","wbmp")="image/vnd.wap.wbmp"
-	. S %YDBWEB(":WS","MIME","ico")="image/x-icon"
-	. S %YDBWEB(":WS","MIME","jng")="image/x-jng"
-	. S %YDBWEB(":WS","MIME","bmp")="image/x-ms-bmp"
-	. S %YDBWEB(":WS","MIME","svg")="image/svg+xml"
-	. S %YDBWEB(":WS","MIME","svgz")="image/svg+xml"
-	. S %YDBWEB(":WS","MIME","webp")="image/webp"
-	. S %YDBWEB(":WS","MIME","woff")="application/font-woff"
-	. S %YDBWEB(":WS","MIME","jar")="application/java-archive" 
-	. S %YDBWEB(":WS","MIME","war")="application/java-archive"
-	. S %YDBWEB(":WS","MIME","ear")="application/java-archive"
-	. S %YDBWEB(":WS","MIME","json")="application/json"
-	. S %YDBWEB(":WS","MIME","hqx")="application/mac-binhex40"
-	. S %YDBWEB(":WS","MIME","doc")="application/msword"
-	. S %YDBWEB(":WS","MIME","pdf")="application/pdf"
-	. S %YDBWEB(":WS","MIME","ps")="application/postscript" 
-	. S %YDBWEB(":WS","MIME","eps")="application/postscript" 
-	. S %YDBWEB(":WS","MIME","ai")="application/postscript"
-	. S %YDBWEB(":WS","MIME","rtf")="application/rtf"
-	. S %YDBWEB(":WS","MIME","m3u8")="application/vnd.apple.mpegurl"
-	. S %YDBWEB(":WS","MIME","xls")="application/vnd.ms-excel"
-	. S %YDBWEB(":WS","MIME","eot")="application/vnd.ms-fontobject"
-	. S %YDBWEB(":WS","MIME","ppt")="application/vnd.ms-powerpoint"
-	. S %YDBWEB(":WS","MIME","wmlc")="application/vnd.wap.wmlc"
-	. S %YDBWEB(":WS","MIME","kml")="application/vnd.google-earth.kml+xml"
-	. S %YDBWEB(":WS","MIME","kmz")="application/vnd.google-earth.kmz"
-	. S %YDBWEB(":WS","MIME","7z")="application/x-7z-compressed"
-	. S %YDBWEB(":WS","MIME","cco")="application/x-cocoa"
-	. S %YDBWEB(":WS","MIME","jardiff")="application/x-java-archive-diff"
-	. S %YDBWEB(":WS","MIME","jnlp")="application/x-java-jnlp-file"
-	. S %YDBWEB(":WS","MIME","run")="application/x-makeself"
-	. S %YDBWEB(":WS","MIME","pl")="application/x-perl"
-	. S %YDBWEB(":WS","MIME","pm")="application/x-perl"
-	. S %YDBWEB(":WS","MIME","prc")="application/x-pilot" 
-	. S %YDBWEB(":WS","MIME","pdb")="application/x-pilot"
-	. S %YDBWEB(":WS","MIME","rar")="application/x-rar-compressed"
-	. S %YDBWEB(":WS","MIME","rpm")="application/x-redhat-package-manager"
-	. S %YDBWEB(":WS","MIME","sea")="application/x-sea"
-	. S %YDBWEB(":WS","MIME","swf")="application/x-shockwave-flash"
-	. S %YDBWEB(":WS","MIME","sit")="application/x-stuffit"
-	. S %YDBWEB(":WS","MIME","tcl")="application/x-tcl"
-	. S %YDBWEB(":WS","MIME","tk")="application/x-tcl"
-	. S %YDBWEB(":WS","MIME","der")="application/x-x509-ca-cert"
-	. S %YDBWEB(":WS","MIME","pem")="application/x-x509-ca-cert"
-	. S %YDBWEB(":WS","MIME","crt")="application/x-x509-ca-cert"
-	. S %YDBWEB(":WS","MIME","xpi")="application/x-xpinstall"
-	. S %YDBWEB(":WS","MIME","xhtml")="application/xhtml+xml"
-	. S %YDBWEB(":WS","MIME","xspf")="application/xspf+xml"
-	. S %YDBWEB(":WS","MIME","zip")="application/zip"
-	. S %YDBWEB(":WS","MIME","bin")="application/octet-stream" 
-	. S %YDBWEB(":WS","MIME","exe")="application/octet-stream" 
-	. S %YDBWEB(":WS","MIME","dll")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","deb")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","dmg")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","iso")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","img")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","msi")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","msp")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","msm")="application/octet-stream"
-	. S %YDBWEB(":WS","MIME","docx")="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	. S %YDBWEB(":WS","MIME","xlsx")="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-	. S %YDBWEB(":WS","MIME","pptx")="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-	. S %YDBWEB(":WS","MIME","mid")="audio/midi"
-	. S %YDBWEB(":WS","MIME","midi")="audio/midi"
-	. S %YDBWEB(":WS","MIME","kar")="audio/midi"
-	. S %YDBWEB(":WS","MIME","mp3")="audio/mpeg"
-	. S %YDBWEB(":WS","MIME","ogg")="audio/ogg"
-	. S %YDBWEB(":WS","MIME","m4a")="audio/x-m4a"
-	. S %YDBWEB(":WS","MIME","ra")="audio/x-realaudio"
-	. S %YDBWEB(":WS","MIME","3gpp")="video/3gpp"
-	. S %YDBWEB(":WS","MIME","3gp")="video/3gpp"
-	. S %YDBWEB(":WS","MIME","ts")="video/mp2t"
-	. S %YDBWEB(":WS","MIME","mp4")="video/mp4"
-	. S %YDBWEB(":WS","MIME","mpeg")="video/mpeg"
-	. S %YDBWEB(":WS","MIME","mpg")="video/mpeg"
-	. S %YDBWEB(":WS","MIME","mov")="video/quicktime"
-	. S %YDBWEB(":WS","MIME","webm")="video/webm"
-	. S %YDBWEB(":WS","MIME","flv")="video/x-flv"
-	. S %YDBWEB(":WS","MIME","m4v")="video/x-m4v"
-	. S %YDBWEB(":WS","MIME","mng")="video/x-mng"
-	. S %YDBWEB(":WS","MIME","asx")="video/x-ms-asf"
-	. S %YDBWEB(":WS","MIME","asf")="video/x-ms-asf"
-	. S %YDBWEB(":WS","MIME","wmv")="video/x-ms-wmv"
-	. S %YDBWEB(":WS","MIME","avi")="video/x-msvideo"
-	I $D(%YDBWEB(":WS","MIME",EXT)) Q %YDBWEB(":WS","MIME",EXT)
-	E  Q "application/octet-stream"
+getmimetype(ext)
+	if $get(ext)="" set ext="*"
+	set ext=$$low(ext)
+	if '$data(ydbweb(":ws","mime")) do
+	. set ydbweb(":ws","mime","html")="text/html" 
+	. set ydbweb(":ws","mime","htm")="text/html" 
+	. set ydbweb(":ws","mime","shtml")="text/html"
+	. set ydbweb(":ws","mime","css")="text/css"
+	. set ydbweb(":ws","mime","xml")="text/xml"
+	. set ydbweb(":ws","mime","gif")="image/gif"
+	. set ydbweb(":ws","mime","jpeg")="image/jpeg" 
+	. set ydbweb(":ws","mime","jpg")="image/jpeg"
+	. set ydbweb(":ws","mime","js")="application/javascript"
+	. set ydbweb(":ws","mime","atom")="application/atom+xml"
+	. set ydbweb(":ws","mime","rss")="application/rss+xml"
+	. set ydbweb(":ws","mime","mml")="text/mathml"
+	. set ydbweb(":ws","mime","txt")="text/plain"
+	. set ydbweb(":ws","mime","jad")="text/vnd.sun.j2me.app-descriptor"
+	. set ydbweb(":ws","mime","wml")="text/vnd.wap.wml"
+	. set ydbweb(":ws","mime","htc")="text/x-component"
+	. set ydbweb(":ws","mime","png")="image/png"
+	. set ydbweb(":ws","mime","tif")="image/tiff" 
+	. set ydbweb(":ws","mime","tiff")="image/tiff"
+	. set ydbweb(":ws","mime","wbmp")="image/vnd.wap.wbmp"
+	. set ydbweb(":ws","mime","ico")="image/x-icon"
+	. set ydbweb(":ws","mime","jng")="image/x-jng"
+	. set ydbweb(":ws","mime","bmp")="image/x-ms-bmp"
+	. set ydbweb(":ws","mime","svg")="image/svg+xml"
+	. set ydbweb(":ws","mime","svgz")="image/svg+xml"
+	. set ydbweb(":ws","mime","webp")="image/webp"
+	. set ydbweb(":ws","mime","woff")="application/font-woff"
+	. set ydbweb(":ws","mime","jar")="application/java-archive" 
+	. set ydbweb(":ws","mime","war")="application/java-archive"
+	. set ydbweb(":ws","mime","ear")="application/java-archive"
+	. set ydbweb(":ws","mime","json")="application/json"
+	. set ydbweb(":ws","mime","hqx")="application/mac-binhex40"
+	. set ydbweb(":ws","mime","doc")="application/msword"
+	. set ydbweb(":ws","mime","pdf")="application/pdf"
+	. set ydbweb(":ws","mime","ps")="application/postscript" 
+	. set ydbweb(":ws","mime","eps")="application/postscript" 
+	. set ydbweb(":ws","mime","ai")="application/postscript"
+	. set ydbweb(":ws","mime","rtf")="application/rtf"
+	. set ydbweb(":ws","mime","m3u8")="application/vnd.apple.mpegurl"
+	. set ydbweb(":ws","mime","xls")="application/vnd.ms-excel"
+	. set ydbweb(":ws","mime","eot")="application/vnd.ms-fontobject"
+	. set ydbweb(":ws","mime","ppt")="application/vnd.ms-powerpoint"
+	. set ydbweb(":ws","mime","wmlc")="application/vnd.wap.wmlc"
+	. set ydbweb(":ws","mime","kml")="application/vnd.google-earth.kml+xml"
+	. set ydbweb(":ws","mime","kmz")="application/vnd.google-earth.kmz"
+	. set ydbweb(":ws","mime","7z")="application/x-7z-compressed"
+	. set ydbweb(":ws","mime","cco")="application/x-cocoa"
+	. set ydbweb(":ws","mime","jardiff")="application/x-java-archive-diff"
+	. set ydbweb(":ws","mime","jnlp")="application/x-java-jnlp-file"
+	. set ydbweb(":ws","mime","run")="application/x-makeself"
+	. set ydbweb(":ws","mime","pl")="application/x-perl"
+	. set ydbweb(":ws","mime","pm")="application/x-perl"
+	. set ydbweb(":ws","mime","prc")="application/x-pilot" 
+	. set ydbweb(":ws","mime","pdb")="application/x-pilot"
+	. set ydbweb(":ws","mime","rar")="application/x-rar-compressed"
+	. set ydbweb(":ws","mime","rpm")="application/x-redhat-package-manager"
+	. set ydbweb(":ws","mime","sea")="application/x-sea"
+	. set ydbweb(":ws","mime","swf")="application/x-shockwave-flash"
+	. set ydbweb(":ws","mime","sit")="application/x-stuffit"
+	. set ydbweb(":ws","mime","tcl")="application/x-tcl"
+	. set ydbweb(":ws","mime","tk")="application/x-tcl"
+	. set ydbweb(":ws","mime","der")="application/x-x509-ca-cert"
+	. set ydbweb(":ws","mime","pem")="application/x-x509-ca-cert"
+	. set ydbweb(":ws","mime","crt")="application/x-x509-ca-cert"
+	. set ydbweb(":ws","mime","xpi")="application/x-xpinstall"
+	. set ydbweb(":ws","mime","xhtml")="application/xhtml+xml"
+	. set ydbweb(":ws","mime","xspf")="application/xspf+xml"
+	. set ydbweb(":ws","mime","zip")="application/zip"
+	. set ydbweb(":ws","mime","bin")="application/octet-stream" 
+	. set ydbweb(":ws","mime","exe")="application/octet-stream" 
+	. set ydbweb(":ws","mime","dll")="application/octet-stream"
+	. set ydbweb(":ws","mime","deb")="application/octet-stream"
+	. set ydbweb(":ws","mime","dmg")="application/octet-stream"
+	. set ydbweb(":ws","mime","iso")="application/octet-stream"
+	. set ydbweb(":ws","mime","img")="application/octet-stream"
+	. set ydbweb(":ws","mime","msi")="application/octet-stream"
+	. set ydbweb(":ws","mime","msp")="application/octet-stream"
+	. set ydbweb(":ws","mime","msm")="application/octet-stream"
+	. set ydbweb(":ws","mime","docx")="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	. set ydbweb(":ws","mime","xlsx")="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	. set ydbweb(":ws","mime","pptx")="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	. set ydbweb(":ws","mime","mid")="audio/midi"
+	. set ydbweb(":ws","mime","midi")="audio/midi"
+	. set ydbweb(":ws","mime","kar")="audio/midi"
+	. set ydbweb(":ws","mime","mp3")="audio/mpeg"
+	. set ydbweb(":ws","mime","ogg")="audio/ogg"
+	. set ydbweb(":ws","mime","m4a")="audio/x-m4a"
+	. set ydbweb(":ws","mime","ra")="audio/x-realaudio"
+	. set ydbweb(":ws","mime","3gpp")="video/3gpp"
+	. set ydbweb(":ws","mime","3gp")="video/3gpp"
+	. set ydbweb(":ws","mime","ts")="video/mp2t"
+	. set ydbweb(":ws","mime","mp4")="video/mp4"
+	. set ydbweb(":ws","mime","mpeg")="video/mpeg"
+	. set ydbweb(":ws","mime","mpg")="video/mpeg"
+	. set ydbweb(":ws","mime","mov")="video/quicktime"
+	. set ydbweb(":ws","mime","webm")="video/webm"
+	. set ydbweb(":ws","mime","flv")="video/x-flv"
+	. set ydbweb(":ws","mime","m4v")="video/x-m4v"
+	. set ydbweb(":ws","mime","mng")="video/x-mng"
+	. set ydbweb(":ws","mime","asx")="video/x-ms-asf"
+	. set ydbweb(":ws","mime","asf")="video/x-ms-asf"
+	. set ydbweb(":ws","mime","wmv")="video/x-ms-wmv"
+	. set ydbweb(":ws","mime","avi")="video/x-msvideo"
+	if $data(ydbweb(":ws","mime",ext)) quit ydbweb(":ws","mime",ext)
+	else  quit "application/octet-stream"
 	;
