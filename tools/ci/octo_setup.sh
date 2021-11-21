@@ -13,7 +13,9 @@
 #################################################################
 
 source $(pkg-config --variable=prefix yottadb)/ydb_env_set
-$ydb_dist/mupip set -journal=before,enable,on -region YDBOCTO
+$ydb_dist/yottadb -run ^GDE < ./tools/ci/octo.gde
+mupip create -region=YDBOCTO
+$ydb_dist/mupip set -journal=before,enable,on -null_subscripts=always -region YDBOCTO
 git clone https://gitlab.com/YottaDB/DBMS/YDBOcto.git YDBOcto-master
 $ydb_dist/mupip load YDBOcto-master/tests/fixtures/northwind.zwr
 octo -f YDBOcto-master/tests/fixtures/northwind.sql
