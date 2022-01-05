@@ -1,7 +1,7 @@
 <!--
 #################################################################
 #                                                               #
-# Copyright (c) 2021 YottaDB LLC and/or its subsidiaries.       #
+# Copyright (c) 2022 YottaDB LLC and/or its subsidiaries.       #
 # All rights reserved.                                          #
 #                                                               #
 #   This source code contains the intellectual property         #
@@ -141,15 +141,16 @@
 
                   <q-item-label>
                     <div class="q-gutter-sm">
-                    
-                      <q-checkbox
-                        size="xs"
+                      <q-checkbox size="xs" dense v-model="showsys" label="" />
+                      <q-btn
+                        :id="'showsyscheckbox'"
+                        no-caps
                         dense
-                        v-model="showsys"
-                        label=""
-                      />
-                        <q-btn :id="'showsyscheckbox'" dense size="xs" flat label="System routines" @click="showsys=!showsys" />
-                      </div
+                        size="xs"
+                        flat
+                        label="System routines"
+                        @click="showsys = !showsys"
+                      /></div
                   ></q-item-label>
                 </q-item-section>
               </q-item>
@@ -167,6 +168,7 @@
                   <q-item-section>
                     <q-item-label
                       ><q-btn
+                      no-caps
                         flat
                         class="full-width"
                         @click="populateRoutine(rtn)"
@@ -694,10 +696,10 @@ export default {
   },
   watch: {
     async showsys(v) {
-        await this.getRoutines();
-        if (this.shownRoutineList[0]) {
-          this.populateRoutine(this.shownRoutineList[0]);
-        }
+      await this.getRoutines();
+      if (this.shownRoutineList[0]) {
+        this.populateRoutine(this.shownRoutineList[0]);
+      }
     },
     splitterModel(v) {
       if (v === 0) {
