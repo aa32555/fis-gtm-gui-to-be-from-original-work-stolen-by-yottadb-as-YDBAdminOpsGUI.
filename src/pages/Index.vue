@@ -124,6 +124,11 @@
 
         <q-slide-transition>
           <div v-show="expandedUtilities">
+            <q-item clickable :to="'/xcmd'" dense>
+              <span style="font-size:16px">
+                %XCMD
+              </span>
+            </q-item>
           </div>
         </q-slide-transition>
       </q-card>

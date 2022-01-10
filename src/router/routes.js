@@ -27,6 +27,7 @@ const routes = [
       { path: 'process/:pid', component: () => import('src/pages/Processes/ProcessDetails.vue') },
       { path: 'documentation', component: () => import('src/pages/Documentation/Documentation.vue') },
       { path: 'documentation/:id', component: () => import('src/pages/Documentation/Documentation.vue') },
+      { path: 'xcmd', component: () => import('src/pages/Utilities/XCMD.vue') },
     ]
   },
 

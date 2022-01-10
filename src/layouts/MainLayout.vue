@@ -72,7 +72,13 @@
             </q-list>
           </q-btn-dropdown>
           <q-btn-dropdown flat :label="$t('toolbar.utilities')" dense>
-            <q-list> </q-list>
+            <q-list> 
+               <q-item clickable v-close-popup :to="'/xcmd'">
+               <q-item-section>
+                  <q-item-label>%XCMD</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
           </q-btn-dropdown>
           <q-btn-dropdown flat :label="$t('toolbar.documentation')" dense>
             <q-list>
