@@ -1,4 +1,3 @@
-
 /*
 #################################################################
 #                                                               #
@@ -12,18 +11,7 @@
 #                                                               #
 #################################################################
 */
+import Vue from 'vue';
+import VueFriendlyIframe from 'vue-friendly-iframe';
 
-export default {
-  toolbar:{
-    system_management:'ادارة النظام',
-    system_explorer:'مستكشف النظام',
-    utilities:'خدمات',
-    documentation:'توثيق',
-    running_processes:'ادارة العمليات',
-    global_directory_editor:'محرر الدليل العالمي (GDE)',
-    routines:'الروتين',
-    globals:'جلوبالس',
-    sqltables:'OCTO الجداول',
-    dashboard: 'Dashboard'
-  }
-}
+Vue.use(VueFriendlyIframe);
