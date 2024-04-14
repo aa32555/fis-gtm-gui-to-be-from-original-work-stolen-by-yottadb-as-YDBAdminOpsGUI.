@@ -26,6 +26,12 @@ UP(STR)							Q $$UP^%YDBUTILS2(.STR)
 LOW(STR)						Q $$LOW^%YDBUTILS2(.STR)
 RoutinePaths(RET)				D RoutinePaths^%YDBUTILS1(.RET) Q
 DeleteFile(FILE)				D DeleteFile^%YDBUTILS1(.FILE) Q
+Replace(s,f,t) ;(Str,From,To)
+	i $tr(s,f)=s q s
+	n o,i s o="" f i=1:1:$l(s,f)  s o=o_$s(i<$l(s,f):$p(s,f,i)_t,1:$p(s,f,i))
+	q o
+	;
+	;	
 	;							
 	;
 	;
