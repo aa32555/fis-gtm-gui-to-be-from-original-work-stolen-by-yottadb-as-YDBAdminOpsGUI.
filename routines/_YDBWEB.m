@@ -26,9 +26,9 @@ Start(PORT) ;
 	. set args(i)=$zpiece($zcmdline," ",i)
 	if $zlength($get(args(1)))&($get(args(1))=+$get(args(1))) set PORT=args(1)
 	K (PORT)
-	I '$G(PORT) S PORT=8089
+	I '$G(PORT) S PORT=80
 	S NOGLB=1
-	I 1 J JOB(PORT) H 1 I '$T W !,"YottaDB Web Server could not be started!" Q
+	I 1 J JOB(PORT) H 1 I '$T W !,"Z DB Web Server could not be started!" Q
 	S JOB=$ZJOB
 	I '$$DirectoryExists^%YDBUTILS("/tmp") D
 	. W !,"Creating /tmp ..."
@@ -39,22 +39,22 @@ Start(PORT) ;
 Stop;
 	K
 	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
+	S SRC="/server/dbgui/dist/spa/ydbweb.info"
 	O SRC:(readonly)
 	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
 	N PORT,PID
 	S PID=$P($P(LINE,","),":",2)
 	S PORT=$P($P(LINE,",",2),":",2)
-	I 'PID W !!,"YottaDB Web Server could not be stopped!" Q
+	I 'PID W !!,"Z DB Web Server could not be stopped!" Q
 	ZSY "kill "_PID
-	W !,"Killed PID: "_PID_". YottaDB Web Server stopped successfully.",!
+	W !,"Killed PID: "_PID_". Z DB Web Server stopped successfully.",!
 	;ZSY "netstat -ano -p tcp | grep "_PORT
 	Q
 	;
 Check
 	K
 	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
+	S SRC="/server/dbgui/dist/spa/ydbweb.info"
 	O SRC:(readonly)
 	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
 	N PORT
@@ -65,13 +65,13 @@ Check
 RUN(HTTPREQ,HTTPRSP,HTTPARGS)
 	S HTTPRSP("mime")="text/html"
 	W ! N SRC,LINE
-	S SRC="/tmp/ydbweb.info"
+	S SRC="/server/dbgui/dist/spa/ydbweb.info"
 	O SRC:(readonly)
 	U SRC R LINE C SRC S LINE=$TR(LINE,$C(13))
 	N PORT,PID
 	S PID=$P($P(LINE,","),":",2)
 	S PORT=$P($P(LINE,",",2),":",2)
-	S @HTTPRSP@(1)="YottaDB web server running on PID: "_PID_" and "_"Port: "_PORT
+	S @HTTPRSP@(1)="Z DB web server running on PID: "_PID_" and "_"Port: "_PORT
 	Q       
 	;
 VIDS(HTTPREQ,HTTPRSP,HTTPARGS)
