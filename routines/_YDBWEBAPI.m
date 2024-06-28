@@ -35,11 +35,11 @@ SERVESTATIC(%Q,%R,%A)
 	I PATH="/YottaDB/" S PATH="/YottaDB/index.html"
 	I $E(PATH,1,9)'="/YottaDB/" D SETERROR^%YDBWEB(404) Q
 	N FILEPATHS
-	S FILEPATH="dist/spa/"_$E(PATH,10,$L(PATH))
+	S FILEPATH="/server/dbgui/dist/spa/"_$E(PATH,10,$L(PATH))
 	I $P(FILEPATH,".",$L(FILEPATH,"."))["?" D
 	. S $P(FILEPATH,".",$L(FILEPATH,"."))=$P($P(FILEPATH,".",$L(FILEPATH,".")),"?")
 	I '$$FileExists^%YDBUTILS(FILEPATH) D
-	. S FILEPATH="dist/spa/index.html"
+	. S FILEPATH="/server/dbgui/dist/spa/index.html"
 	N EXT S EXT=$P(FILEPATH,".",$L(FILEPATH,"."))
 	S %R("mime")=$$GetMimeType^%YDBWEB(EXT)
 	N OUTPUT
